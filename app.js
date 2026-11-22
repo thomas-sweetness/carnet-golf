@@ -756,7 +756,8 @@
     page(topbar("Entraînement") + '<p class="lead">Choisis un secteur : l\'appli t\'affiche ton prochain exercice prévu dans ton plan.</p>' +
       '<div class="sector-grid">' + grid + '<button class="random" id="tRand"><span class="ic">' + ic("shuffle") +
       "</span><span>Secteur au hasard<small>Laisse l'appli choisir ta séance du jour</small></span></button></div>" +
-      '<h2 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:24px 4px 12px">Mes plans</h2>' + plans +
+      '<h2 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:24px 4px 12px">Mes plans</h2>' +
+      (plans || "<div class=\"card\"><div class=\"empty\">Aucun plan pour l'instant. Importe ton plan d'entraînement : il restera uniquement dans ce téléphone.</div></div>") +
       '<div class="row" style="margin-top:4px"><button class="btn ghost" id="tImport">' + ic("upload") + 'Importer</button><button class="btn ghost" id="tAdd">' + ic("plus") + "Ajouter un exercice</button></div>" +
       '<input type="file" id="tFile" accept=".md,.txt,text/markdown,text/plain" hidden />' +
       '<p class="muted small" style="margin:12px 4px 0;line-height:1.45">Import : un fichier texte ou Markdown (.md), avec des titres « ## » et des exercices sous la forme « - [ ] texte ». Les semaines s\'écrivent « **S1 · 23 nov — Thème** ».</p>');
@@ -767,25 +768,41 @@
       toast("Aujourd'hui : " + s.label);
       go("sector", { id: s.id });
     });
-    on("tImport", "click", function () { $("#tFile").click(); });
+    on("tImport", "click", function () {
+      openSheet("<h3>Importer un plan</h3><p>Ton plan reste uniquement dans ce téléphone.</p>" +
+        '<button class="btn ghost" id="imFile">' + ic("upload") + "Choisir un fichier .md</button>" +
+        '<div class="field" style="margin-top:14px"><label>Ou colle le texte du plan</label><textarea class="input" id="imText" style="min-height:30vh;font-size:13px" placeholder="# Mon plan&#10;- [ ] 20 putts de 1,5 m"></textarea></div>' +
+        '<button class="btn" id="imOk">Importer le texte</button>', function () {
+        on("imFile", "click", function () { closeSheet(); $("#tFile").click(); });
+        on("imOk", "click", function () {
+          var md = $("#imText").value;
+          if (!md.trim()) return;
+          closeSheet();
+          addPlan(md, "Mon plan");
+        });
+      });
+    });
     on("tFile", "change", function (e) {
       var f = e.target.files[0];
       if (!f) return;
       var reader = new FileReader();
       reader.onload = function () {
-        var md = String(reader.result);
-        var title = (md.match(/^#\s+(.+)$/m) || [])[1] || f.name.replace(/\.(md|txt)$/i, "");
-        var id = "p_" + Date.now().toString(36);
-        plansState.custom.push({ id: id, title: title.trim(), md: md });
-        persist("plans");
-        toast("Plan importé");
-        go("plan", { id: id }, true);
+        addPlan(String(reader.result), f.name.replace(/\.(md|txt)$/i, ""));
       };
       reader.readAsText(f);
     });
     on("tAdd", "click", function () { addExerciseSheet(); });
   };
 
+  function addPlan(md, fallback) {
+    md = md.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "").replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, "$2").replace(/\[\[([^\]]+)\]\]/g, "$1");
+    var title = ((md.match(/^#\s+(.+)$/m) || [])[1] || fallback).trim();
+    var id = "p_" + Date.now().toString(36);
+    plansState.custom.push({ id: id, title: title, md: md });
+    persist("plans");
+    toast("Plan importé");
+    go("plan", { id: id });
+  }
   function myPlan() {
     var p = plansState.custom.filter(function (x) { return x.id === "mine"; })[0];
     if (!p) { p = { id: "mine", title: "Mes exercices", md: "# Mes exercices\n" }; plansState.custom.unshift(p); }
@@ -1164,7 +1181,8 @@
     var hd = c.holes[round.holeIndex];
     var h = curHole();
     $("#pNum").textContent = round.holeIndex + 1;
-    $("#pA").textContent = "Par " + h.par + (hd.i ? " · index " + hd.i : "");
+    var len = hd[round.course.tee];
+    $("#pA").textContent = "Par " + h.par + (hd.i ? " · index " + hd.i : "") + (len ? " · " + len + " m" : "");
     var pt = playedTotals();
     var extra = round.format === "stableford" ? totalPoints() + " pts" : signed(pt.s - pt.p);
     $("#pB").textContent = c.short + (hd.loopName ? " · " + hd.loopName : "") + " · " + extra;
