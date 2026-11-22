@@ -1,10 +1,10 @@
 // Hors ligne : l'appli est servie depuis le cache tout de suite et mise à jour en arrière-plan.
 // Les tuiles satellite déjà vues sont gardées pour le parcours (cache séparé, plafonné).
-var CACHE = "carnet-golf-v6";
+var CACHE = "carnet-golf-v7";
 var TILES = "carnet-golf-tiles";
 var MAX_TILES = 1500;
 var FILES = [
-  "./", "index.html", "manifest.json", "icon-192.png", "icon-512.png", "barbaroux-geo.js",
+  "./", "index.html", "manifest.json", "icon-192.png", "icon-512.png", "barbaroux-geo.js", "courses.js", "plans.js", "app.js", "style.css",
   "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css",
   "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
 ];
@@ -45,7 +45,7 @@ self.addEventListener("fetch", function (e) {
   }
 
   // Recherches en ligne (cartes, lieux) : jamais en cache
-  if (url.indexOf("overpass") !== -1 || url.indexOf("nominatim") !== -1) return;
+  if (url.indexOf("overpass") !== -1 || url.indexOf("nominatim") !== -1 || url.indexOf("open-meteo") !== -1) return;
 
   e.respondWith(caches.open(CACHE).then(function (cache) {
     return cache.match(e.request, { ignoreSearch: true }).then(function (hit) {
