@@ -1,0 +1,1303 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<title>Carnet de parcours</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#2e5339" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icon-192.png" />
+<style>
+  :root {
+    --paper: #f1efe3;
+    --card: #f8f7ee;
+    --ink: #1c2318;
+    --ink-dim: #5b6355;
+    --fairway: #2e5339;
+    --fairway-soft: #e3ece1;
+    --sand: #a87f35;
+    --flag: #a63b2a;
+    --line: rgba(28, 35, 24, 0.14);
+    --shadow: rgba(28, 35, 24, 0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #10140d;
+      --card: #171d13;
+      --ink: #e9e7d8;
+      --ink-dim: #9aa290;
+      --fairway: #6fbe8c;
+      --fairway-soft: rgba(111, 190, 140, 0.16);
+      --sand: #d8a94f;
+      --flag: #e2685a;
+      --line: rgba(233, 231, 216, 0.16);
+      --shadow: rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #10140d;
+    --card: #171d13;
+    --ink: #e9e7d8;
+    --ink-dim: #9aa290;
+    --fairway: #6fbe8c;
+    --fairway-soft: rgba(111, 190, 140, 0.16);
+    --sand: #d8a94f;
+    --flag: #e2685a;
+    --line: rgba(233, 231, 216, 0.16);
+    --shadow: rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: ui-sans-serif, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body { min-height: 100vh; display: flex; justify-content: center; }
+  .app {
+    width: 100%;
+    max-width: 480px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: calc(78px + env(safe-area-inset-bottom));
+  }
+  .mono {
+    font-family: "Cascadia Code", "SF Mono", ui-monospace, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  header.top {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--paper);
+    padding: max(14px, env(safe-area-inset-top)) 16px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .hole-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .hole-label {
+    font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ink-dim); font-weight: 700;
+  }
+  .hole-number { font-size: 40px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; margin: 2px 0; }
+  .hole-par { font-size: 14px; color: var(--ink-dim); font-weight: 600; }
+  .date-tag { font-size: 12px; color: var(--ink-dim); text-align: right; }
+  .date-tag strong { display: block; color: var(--ink); font-size: 13px; }
+
+  nav.tabs {
+    display: flex; gap: 6px; margin: 14px 0 12px;
+    background: var(--fairway-soft); border-radius: 12px; padding: 4px;
+  }
+  nav.tabs button {
+    flex: 1; border: none; background: transparent; color: var(--ink-dim);
+    font-weight: 700; font-size: 13.5px; padding: 10px 4px; border-radius: 9px; cursor: pointer;
+  }
+  nav.tabs button.active { background: var(--fairway); color: var(--paper); }
+
+  main { flex: 1; padding: 4px 16px 18px; }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 1px 2px var(--shadow);
+  }
+  .card h2 {
+    font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ink-dim); margin: 0 0 10px; font-weight: 700;
+  }
+
+  .progress-track { height: 6px; background: var(--fairway-soft); border-radius: 4px; overflow: hidden; margin: 10px 0 16px; }
+  .progress-fill { height: 100%; background: var(--fairway); border-radius: 4px; transition: width 0.2s ease; }
+  .progress-caption {
+    font-size: 12px; color: var(--ink-dim); font-weight: 600;
+    display: flex; justify-content: space-between; margin-bottom: 2px;
+  }
+
+  .check-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+  .check-row:last-child { border-bottom: none; }
+  .check-row input[type="checkbox"] {
+    appearance: none; width: 26px; height: 26px; min-width: 26px; border-radius: 8px;
+    border: 2px solid var(--fairway); display: grid; place-content: center; cursor: pointer; margin: 0;
+  }
+  .check-row input[type="checkbox"]::before {
+    content: ""; width: 14px; height: 14px; border-radius: 4px;
+    transform: scale(0); transition: transform 0.12s ease; background: var(--fairway);
+  }
+  .check-row input[type="checkbox"]:checked::before { transform: scale(1); }
+  .check-row .step-num { font-size: 12px; font-weight: 800; color: var(--fairway); min-width: 16px; }
+  .check-row input[type="text"] {
+    flex: 1; min-width: 0; border: none; background: transparent; color: var(--ink);
+    font-size: 15px; font-weight: 600; padding: 4px 2px; border-bottom: 1px solid transparent;
+  }
+  .check-row input[type="text"]:focus { outline: none; border-bottom: 1px solid var(--fairway); }
+  .check-row.checked input[type="text"] { color: var(--ink-dim); text-decoration: line-through; text-decoration-color: var(--line); }
+
+  .field-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 0; border-bottom: 1px solid var(--line); gap: 10px;
+  }
+  .field-row:last-child { border-bottom: none; }
+  .field-label { font-size: 14.5px; font-weight: 700; }
+  .field-sub { font-size: 12px; color: var(--ink-dim); font-weight: 500; }
+
+  .chip-group { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .chip {
+    border: 1.5px solid var(--line); background: transparent; color: var(--ink);
+    font-weight: 700; font-size: 13px; padding: 8px 12px; border-radius: 9px; cursor: pointer; min-width: 42px;
+  }
+  .chip.active { background: var(--fairway); border-color: var(--fairway); color: var(--paper); }
+
+  .stepper { display: flex; align-items: center; gap: 10px; }
+  .stepper button {
+    width: 34px; height: 34px; border-radius: 9px; border: 1.5px solid var(--fairway);
+    background: transparent; color: var(--fairway); font-size: 18px; font-weight: 800;
+    cursor: pointer; display: grid; place-content: center; line-height: 1;
+  }
+  .stepper button:active { background: var(--fairway-soft); }
+  .stepper .val { min-width: 26px; text-align: center; font-size: 18px; font-weight: 800; }
+
+  .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat-tile { background: var(--fairway-soft); border-radius: 12px; padding: 12px; }
+  .stat-tile .num { font-size: 22px; font-weight: 800; line-height: 1.1; }
+  .stat-tile .num small { font-size: 13px; font-weight: 700; color: var(--ink-dim); }
+  .stat-tile .lbl {
+    font-size: 11.5px; color: var(--ink-dim); font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px;
+  }
+
+  .bars { display: flex; align-items: flex-end; gap: 3px; height: 64px; margin-top: 6px; }
+  .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 4px; min-width: 0; }
+  .bar { width: 100%; border-radius: 3px 3px 0 0; min-height: 4px; }
+  .bar-idx { font-size: 9px; color: var(--ink-dim); font-weight: 700; white-space: nowrap; }
+  .bar-val { font-size: 10px; font-weight: 800; color: var(--ink); }
+  .bars.tall { height: 110px; gap: 6px; }
+
+  .history-row { display: flex; flex-direction: column; gap: 3px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+  .history-row:last-child { border-bottom: none; }
+  .history-row .top-line { display: flex; justify-content: space-between; gap: 8px; }
+  .history-row .d { color: var(--ink-dim); }
+  .history-row .s { font-weight: 800; white-space: nowrap; }
+  .history-row .sub-line { display: flex; justify-content: space-between; gap: 8px; color: var(--ink-dim); font-size: 12px; }
+  .badge {
+    display: inline-block; font-size: 10.5px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.04em; padding: 2px 7px; border-radius: 6px;
+    background: var(--fairway-soft); color: var(--fairway); margin-right: 5px;
+  }
+  .empty-note { color: var(--ink-dim); font-size: 13.5px; font-style: italic; }
+
+  textarea.holes-input, textarea.note-input {
+    width: 100%; border: 1.5px solid var(--line); background: transparent; color: var(--ink);
+    border-radius: 10px; padding: 10px; resize: vertical;
+  }
+  textarea.holes-input {
+    min-height: 88px; font-size: 13.5px;
+    font-family: "Cascadia Code", "SF Mono", ui-monospace, Consolas, monospace;
+  }
+  textarea.note-input {
+    min-height: 70px; font-size: 14.5px; line-height: 1.45; font-family: inherit;
+    border-style: dashed; overflow: hidden;
+  }
+  textarea:focus { outline: none; border-color: var(--fairway) !important; border-style: solid !important; }
+  .note-tools { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; gap: 8px; }
+  .link-btn {
+    border: none; background: none; color: var(--fairway); font-weight: 700;
+    font-size: 12.5px; padding: 4px 0; cursor: pointer; text-decoration: underline;
+  }
+  .text-input {
+    width: 100%; border: 1.5px solid var(--line); background: transparent; color: var(--ink);
+    border-radius: 10px; padding: 10px; font-size: 14.5px; font-weight: 600; font-family: inherit;
+  }
+  .text-input:focus { outline: none; border-color: var(--fairway); }
+  .split-row { display: flex; align-items: center; gap: 6px; }
+  .split-row input[type="number"] {
+    width: 52px; text-align: center; border: 1.5px solid var(--line); background: transparent; color: var(--ink);
+    border-radius: 8px; padding: 8px 4px; font-size: 14px; font-weight: 700; font-family: inherit;
+  }
+  .split-row input[type="number"]:focus { outline: none; border-color: var(--fairway); }
+  .split-row .sep { color: var(--ink-dim); font-weight: 700; }
+  .holes-preview { font-size: 12.5px; color: var(--ink-dim); margin-top: 8px; }
+
+  .ghost-btn {
+    width: 100%; padding: 12px; border-radius: 12px; border: 1.5px solid var(--line);
+    background: transparent; color: var(--ink-dim); font-weight: 700; font-size: 13.5px;
+    cursor: pointer; margin-top: 6px; font-family: inherit;
+  }
+  .primary-btn {
+    width: 100%; padding: 13px; border-radius: 12px; border: none; background: var(--fairway);
+    color: var(--paper); font-weight: 800; font-size: 14.5px; cursor: pointer; margin-top: 4px; font-family: inherit;
+  }
+  .primary-btn:active, .ghost-btn:active { opacity: 0.85; }
+
+  footer.bottomnav {
+    position: fixed; bottom: 0; left: 0; right: 0; display: flex; justify-content: center;
+    background: var(--paper); border-top: 1px solid var(--line);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  }
+  .bottomnav-inner { width: 100%; max-width: 480px; display: flex; gap: 10px; }
+  .nav-btn {
+    flex: 1; padding: 13px 8px; border-radius: 12px; border: 1.5px solid var(--fairway);
+    background: transparent; color: var(--fairway); font-weight: 800; font-size: 13.5px; cursor: pointer; font-family: inherit;
+  }
+  .nav-btn:disabled { opacity: 0.35; cursor: default; }
+  .nav-btn.fill { background: var(--fairway); color: var(--paper); }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="hole-row">
+      <div>
+        <div class="hole-label">Trou en cours</div>
+        <div class="hole-number mono" id="holeNumber">1</div>
+        <div class="hole-par" id="holePar">Par 4</div>
+      </div>
+      <div class="date-tag" id="dateTag"></div>
+    </div>
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="routine">Routine</button>
+      <button class="tab-btn" data-tab="parcours">Trou</button>
+      <button class="tab-btn" data-tab="resume">Partie</button>
+      <button class="tab-btn" data-tab="stats">Stats</button>
+      <button class="tab-btn" data-tab="ajouter">Ajouter</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ROUTINE -->
+    <section class="view active" id="view-routine">
+      <div class="progress-caption">
+        <span>Check-list avant le coup</span>
+        <span id="progressText">0 / 4</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+
+      <div class="card">
+        <h2>Routine pré-shot — 3 étapes</h2>
+        <div id="preshotList"></div>
+      </div>
+
+      <div class="card">
+        <h2>Jeu court</h2>
+        <div id="shortgameList"></div>
+      </div>
+
+      <button class="primary-btn" id="resetChecks">Prochain coup — réinitialiser</button>
+    </section>
+
+    <!-- TROU -->
+    <section class="view" id="view-parcours">
+      <div class="card" id="courseCard" style="display:none;">
+        <h2 id="courseTitle">Fiche du trou</h2>
+        <div class="field-sub" id="courseMeta" style="margin-bottom:10px;"></div>
+        <textarea class="note-input" id="holeNote" placeholder="Ta note pour ce trou : danger, club, plan de jeu… Elle reviendra à chaque partie sur ce parcours."></textarea>
+        <div class="note-tools">
+          <span class="field-sub" id="noteStatus">Note modifiable, enregistrée automatiquement</span>
+          <button class="link-btn" id="noteReset" style="display:none;">Fiche d'origine</button>
+        </div>
+        <div class="field-sub" id="coursePts" style="margin-top:8px;"></div>
+      </div>
+
+      <div class="card">
+        <h2>Ce trou</h2>
+        <div class="field-row">
+          <div class="field-label">Par</div>
+          <div class="chip-group" id="parChips"></div>
+        </div>
+        <div class="field-row">
+          <div class="field-label">Score</div>
+          <div class="stepper" id="scoreStepper">
+            <button data-dir="-1">−</button>
+            <span class="val mono" id="scoreVal">4</span>
+            <button data-dir="1">+</button>
+          </div>
+        </div>
+        <div class="field-row" id="fairwayRow">
+          <div class="field-label">Fairway touché</div>
+          <div class="chip-group" id="fairwayChips"></div>
+        </div>
+        <div class="field-row">
+          <div class="field-label">Green en régulation</div>
+          <div class="chip-group" id="girChips"></div>
+        </div>
+        <div class="field-row">
+          <div class="field-label">Putts</div>
+          <div class="stepper" id="puttsStepper">
+            <button data-dir="-1">−</button>
+            <span class="val mono" id="puttsVal">2</span>
+            <button data-dir="1">+</button>
+          </div>
+        </div>
+        <div class="field-row">
+          <div>
+            <div class="field-label">Up &amp; down</div>
+            <div class="field-sub">si green manqué</div>
+          </div>
+          <div class="chip-group" id="upDownChips"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PARTIE -->
+    <section class="view" id="view-resume">
+      <div class="card">
+        <h2>Parcours de la partie</h2>
+        <div class="field-sub" id="courseStatus" style="margin-bottom:6px;"></div>
+        <div class="field-row">
+          <div class="field-label">Parcours</div>
+          <div class="chip-group" id="courseChips"></div>
+        </div>
+        <div class="field-row" id="teeRow">
+          <div class="field-label">Départs</div>
+          <div class="chip-group" id="teeChips"></div>
+        </div>
+        <div class="field-row">
+          <div>
+            <div class="field-label">Handicap de jeu</div>
+            <div class="field-sub" id="hcpNote"></div>
+          </div>
+          <div class="stepper" id="hcpStepper">
+            <button data-dir="-1">−</button>
+            <span class="val mono" id="hcpVal">16</span>
+            <button data-dir="1">+</button>
+          </div>
+        </div>
+        <button class="primary-btn" id="loadCourse" style="margin-top:10px;">Démarrer une partie sur ce parcours</button>
+        <button class="ghost-btn" id="unloadCourse">Jouer sans parcours (pars à la main)</button>
+      </div>
+
+      <div class="card">
+        <h2>Partie en cours</h2>
+        <div class="summary-grid" id="summaryGrid"></div>
+      </div>
+
+      <div class="card">
+        <h2>Allure du parcours</h2>
+        <div class="bars" id="barsChart"></div>
+      </div>
+
+      <button class="primary-btn" id="finishRound">Terminer &amp; enregistrer la partie</button>
+      <button class="ghost-btn" id="newRound">Nouvelle partie (sans enregistrer)</button>
+    </section>
+
+    <!-- STATS -->
+    <section class="view" id="view-stats">
+      <div class="card">
+        <h2>Toutes mes parties</h2>
+        <div class="field-row" style="padding-top:0;">
+          <div class="field-label">Parcours</div>
+          <div class="chip-group" id="statsFilterChips"></div>
+        </div>
+        <div class="summary-grid" id="statsGrid" style="margin-top:10px;"></div>
+      </div>
+
+      <div class="card">
+        <h2 id="evoTitle">Évolution</h2>
+        <div class="chip-group" id="evoChips" style="justify-content:flex-start;margin-bottom:10px;"></div>
+        <div class="bars tall" id="evoChart"></div>
+        <div class="field-sub" id="evoNote" style="margin-top:8px;"></div>
+      </div>
+
+      <div class="card">
+        <h2>Historique</h2>
+        <div id="historyList"></div>
+      </div>
+
+      <div class="card">
+        <h2>Sauvegarde</h2>
+        <div class="field-sub">Tes données restent dans le navigateur du téléphone. Exporte de temps en temps un fichier de sauvegarde, au cas où.</div>
+        <button class="ghost-btn" id="exportBtn">Exporter mes données</button>
+        <button class="ghost-btn" id="importBtn">Importer une sauvegarde</button>
+        <input type="file" id="importFile" accept="application/json,.json" style="display:none;" />
+        <button class="ghost-btn" id="clearHistory" style="margin-top:16px;">Effacer l'historique</button>
+      </div>
+    </section>
+
+    <!-- AJOUTER -->
+    <section class="view" id="view-ajouter">
+      <div class="card">
+        <h2>Infos partie</h2>
+        <div class="field-row"><div class="field-label">Parcours</div></div>
+        <input class="text-input" type="text" id="addCourse" placeholder="Ex. Golf de Mérignies" />
+        <div class="field-row" style="margin-top:10px;"><div class="field-label">Date</div></div>
+        <input class="text-input mono" type="date" id="addDate" />
+        <div class="field-row" style="margin-top:10px;">
+          <div class="field-label">Format</div>
+          <div class="chip-group" id="addFormatChips"></div>
+        </div>
+        <div class="field-row">
+          <div class="field-label">Compte pour l'index</div>
+          <div class="chip-group" id="addIndexChips"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Détail trou par trou</h2>
+        <div class="field-sub" style="margin-bottom:8px;">Format libre : <span class="mono">trou: score/par</span> — ex. "1: 4/4 2: 5/4 3: 3/3 ..."</div>
+        <textarea class="holes-input" id="addHolesText" placeholder="1: 4/4  2: 5/4  3: 3/3 ..."></textarea>
+        <button class="ghost-btn" id="addParseBtn">Analyser</button>
+        <div class="holes-preview" id="addHolesPreview"></div>
+      </div>
+
+      <div class="card">
+        <h2>Stats agrégées</h2>
+        <div class="field-row">
+          <div class="field-label">Putts (total)</div>
+          <div class="split-row"><input type="number" inputmode="numeric" id="addPutts" min="0" /></div>
+        </div>
+        <div class="field-row">
+          <div class="field-label">Fairways touchés / total</div>
+          <div class="split-row">
+            <input type="number" inputmode="numeric" id="addFwHit" min="0" /><span class="sep">/</span><input type="number" inputmode="numeric" id="addFwCount" min="0" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-label">Greens en régulation touchés / total</div>
+          <div class="split-row">
+            <input type="number" inputmode="numeric" id="addGirHit" min="0" /><span class="sep">/</span><input type="number" inputmode="numeric" id="addGirCount" min="0" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-label">Up &amp; down réussis / total</div>
+          <div class="split-row">
+            <input type="number" inputmode="numeric" id="addUdHit" min="0" /><span class="sep">/</span><input type="number" inputmode="numeric" id="addUdCount" min="0" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-label">Points stableford</div>
+          <div class="split-row"><input type="number" inputmode="numeric" id="addStableford" min="0" /></div>
+        </div>
+      </div>
+
+      <button class="primary-btn" id="addSaveBtn">Enregistrer cette partie</button>
+    </section>
+  </main>
+
+  <footer class="bottomnav">
+    <div class="bottomnav-inner">
+      <button class="nav-btn" id="prevHole">◀ Trou précédent</button>
+      <button class="nav-btn fill" id="nextHole">Trou suivant ▶</button>
+    </div>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var LS_LABELS = "golf_labels_v1";
+  var LS_ROUND = "golf_round_v1";
+  var LS_HISTORY = "golf_history_v1";
+  var LS_NOTES = "golf_notes_v1";
+  var LS_SEEDED = "golf_seeded_v1";
+
+  function loadJSON(key, fallback) {
+    try {
+      var raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch (e) { return fallback; }
+  }
+  function saveJSON(key, val) {
+    try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {}
+  }
+
+  // ---------- Parcours intégrés ----------
+  // Pour ajouter un parcours : nouvelle entrée ici (par p, index de trou i, notes facultatives).
+  var COURSES = {
+    barbaroux: {
+      name: "Golf de Barbaroux",
+      short: "Barbaroux",
+      tees: [{ id: "j", label: "Jaunes", hcp: 16 }, { id: "b", label: "Blancs", hcp: 20 }],
+      hcpNote: "16 jaunes / 20 blancs (index 13.6)",
+      holes: [
+        {p:4,i:7,j:315,b:358,danger:"Long bunker en bordure droite du fairway, plan d'eau à droite.",plan:"Bois 3 centre-gauche, reste ~120 m.",club:"Bois 3 → fer 9"},
+        {p:4,i:9,j:308,b:326,danger:"Montée vers le green, arbres des deux côtés, bunker à gauche du green.",plan:"Bois 3 au centre, reste ~110 m en montée : un club de plus.",club:"Bois 3 → fer 9"},
+        {p:5,i:11,j:407,b:463,danger:"Départ dégagé, fairway qui monte puis redescend vers le green, chemin à droite. Green en haricot, bunker profond à droite, talus derrière.",plan:"En trois coups, ne jamais rater à droite.",club:"Driver → fer 7 → 60°"},
+        {p:3,i:17,j:134,b:139,danger:"Green perché sur une crête, ça tombe de tous les côtés.",plan:"Centre du green, pas le drapeau.",club:"Fer 8 (fer 7 vent de face)"},
+        {p:5,i:1,j:468,b:499,danger:"Drive en montée, sortie en partie aveugle, creux à gauche du fairway. Muret de pierres et chute à gauche du green.",plan:"Trou le plus dur. Trois coups, approche à droite du drapeau.",club:"Driver → fer 5 → 56° (~70 m)"},
+        {p:4,i:3,j:343,b:403,danger:"Long, pins à droite.",plan:"Driver centre-gauche. Le bogey est un bon score.",club:"Driver → fer 9 (~120 m)"},
+        {p:4,i:13,j:249,b:267,danger:"Départ surélevé sur une crête : à droite ça tombe dans un ravin boisé. Bunker sur la gauche du fairway, buttes à droite du green.",plan:"Pas de driver, centre-gauche, jamais à droite. Occasion de birdie.",club:"Fer 5 → 56° plein (~75 m)"},
+        {p:3,i:15,j:148,b:158,danger:"Par 3 en montée dans un couloir de pins. Bunker devant à gauche, bunker derrière à droite.",plan:"Un club de plus, ça monte. Centre du green.",club:"Fer 6"},
+        {p:4,i:5,j:363,b:386,danger:"Départ dans un couloir d'arbres, fairway qui descend puis remonte, talus à droite le long du chemin. Gros bunker profond devant à gauche du green surélevé.",plan:"Approche en montée vers la moitié droite du green : un club de plus.",club:"Driver → fer 6 (~145 m en montée)"},
+        {p:4,i:12,j:293,b:319,danger:"Eau le long du fairway à gauche, bois à droite.",plan:"Droite du fairway, loin de l'eau.",club:"Fer 5 → PW / fer 9 (~115 m)"},
+        {p:4,i:16,j:259,b:285,danger:"Départ surélevé, le lac longe tout le côté droit du fairway jusqu'au green. Pas de carry forcé.",plan:"Côté gauche du fairway, approche loin de l'eau.",club:"Fer 6 → PW (~100 m)"},
+        {p:5,i:4,j:467,b:497,danger:"Bois à gauche, fossé sec sur la gauche du fairway en approchant du green.",plan:"Lay-up centre-droit, approche loin du fossé.",club:"Driver → fer 7 → wedge"},
+        {p:4,i:8,j:381,b:399,danger:"Pins et chemin à gauche, green surélevé.",plan:"Fairway large. Bogey acceptable.",club:"Driver → fer 6 (fer 5 si ça monte)"},
+        {p:4,i:14,j:255,b:290,danger:"Bunkers en série sur la droite, bunker à gauche du green.",plan:"Centre-gauche du fairway.",club:"Fer 6 → PW (~95 m)"},
+        {p:3,i:18,j:131,b:167,danger:"Grand bunker sur toute la largeur devant le green, bunker profond à droite, bunker à gauche. Court = sable.",plan:"Plutôt long que court. Centre du green.",club:"Fer 8 plein"},
+        {p:4,i:6,j:348,b:383,danger:"Eau tout le long à gauche jusqu'au green, murets de pierre.",plan:"Tout à droite : départ et approche.",club:"Driver → fer 9 (~130 m)"},
+        {p:5,i:2,j:484,b:521,danger:"Petit plan d'eau à passer devant le départ, fossé d'eau à droite au début, plan d'eau à gauche dans la zone du 2e coup. Eau à droite et derrière le green, bunker devant à gauche.",plan:"Toujours à gauche du drapeau, jamais long.",club:"Driver → fer 5 → wedge (~90 m)"},
+        {p:3,i:10,j:173,b:193,danger:"Départ dégagé en légère descente, arbres à gauche. Bunkers à gauche et à droite du green.",plan:"Court au centre vaut mieux qu'un bunker.",club:"Fer 5"}
+      ]
+    },
+    merignies: {
+      name: "Golf de Mérignies",
+      short: "Mérignies",
+      tees: [{ id: "std", label: "Habituels", hcp: 14 }],
+      hcpNote: "≈ 14 avec l'index 13.6 (slope 125, SSS 70.1)",
+      holes: [
+        {p:4,i:17},{p:3,i:7},{p:5,i:13},{p:3,i:11},{p:4,i:5},{p:4,i:1},{p:4,i:15},{p:3,i:9},{p:4,i:3},
+        {p:4,i:2},{p:3,i:4},{p:5,i:18},{p:3,i:14},{p:5,i:12},{p:4,i:6},{p:4,i:8},{p:4,i:10},{p:5,i:16}
+      ]
+    }
+  };
+  var COURSE_IDS = Object.keys(COURSES);
+  function courseOf(r) { return r && r.course && COURSES[r.course.id] ? COURSES[r.course.id] : null; }
+  function teeOf(c, teeId) {
+    for (var k = 0; k < c.tees.length; k++) if (c.tees[k].id === teeId) return c.tees[k];
+    return c.tees[0];
+  }
+
+  // ---------- État ----------
+  var defaultLabels = {
+    preshot1: "Vision du coup",
+    preshot2: "Swing d'essai",
+    preshot3: "Alignement final",
+    shortgame: "Jeu court — distance avant trajectoire"
+  };
+  var preshotIds = ["preshot1", "preshot2", "preshot3"];
+  var shortgameIds = ["shortgame"];
+  var allIds = preshotIds.concat(shortgameIds);
+  var labels = Object.assign({}, defaultLabels, loadJSON(LS_LABELS, {}));
+
+  function emptyHole(par) {
+    return { par: par || 4, score: par || 4, fairway: par === 3 ? "na" : null, gir: null, putts: 2, upDown: null };
+  }
+  function newRoundState() {
+    var holes = [];
+    for (var i = 0; i < 18; i++) holes.push(emptyHole(4));
+    return { date: new Date().toISOString(), holeIndex: 0, checks: {}, holes: holes };
+  }
+
+  var round = loadJSON(LS_ROUND, null);
+  if (!round || !round.holes || round.holes.length !== 18) round = newRoundState();
+  if (round.course && !COURSES[round.course.id]) delete round.course;
+
+  var history = loadJSON(LS_HISTORY, []);
+  var notes = loadJSON(LS_NOTES, {});
+
+  // Partie déjà jouée, injectée une seule fois : Mérignies 23/07/2026
+  if (!loadJSON(LS_SEEDED, false)) {
+    var mer = [[4,4],[4,3],[5,5],[3,3],[7,4],[5,4],[5,4],[4,3],[6,4],[4,4],[6,3],[5,5],[4,3],[5,5],[5,4],[5,4],[7,4],[5,5]];
+    var already = history.some(function (r) { return r.course === "Golf de Mérignies" && String(r.date).slice(0, 10) === "2026-07-23"; });
+    if (!already) {
+      history.push({
+        date: "2026-07-23T12:00:00.000Z", course: "Golf de Mérignies", courseId: "merignies",
+        format: "stableford", countsForIndex: true, totalScore: 89, totalPar: 71,
+        holes: mer.map(function (x, k) { return { hole: k + 1, score: x[0], par: x[1] }; }),
+        putts: 32, avgPutts: "1.8", fwHit: 6, fwCount: 12, girHit: 4, girCount: 17, udHit: 2, udCount: 5,
+        stablefordPoints: 33
+      });
+      saveJSON(LS_HISTORY, history);
+    }
+    saveJSON(LS_SEEDED, true);
+  }
+
+  function persistRound() { saveJSON(LS_ROUND, round); }
+  function persistLabels() { saveJSON(LS_LABELS, labels); }
+  function persistHistory() { saveJSON(LS_HISTORY, history); }
+  function persistNotes() { saveJSON(LS_NOTES, notes); }
+
+  // ---------- Stableford ----------
+  function strokesFor(si, hcp) { return Math.floor(hcp / 18) + (si <= hcp % 18 ? 1 : 0); }
+  function holeStableford(idx) {
+    var c = courseOf(round);
+    if (!c) return null;
+    var h = round.holes[idx];
+    return Math.max(0, h.par + strokesFor(c.holes[idx].i, round.course.hcp) + 2 - h.score);
+  }
+  function totalStableford() {
+    if (!courseOf(round)) return null;
+    var s = 0;
+    for (var k = 0; k < 18; k++) s += holeStableford(k);
+    return s;
+  }
+
+  // ---------- Notes par trou ----------
+  function defaultNote(cid, idx) {
+    var h = COURSES[cid].holes[idx];
+    var parts = [];
+    if (h.danger) parts.push("Danger : " + h.danger);
+    if (h.plan) parts.push("Plan : " + h.plan);
+    if (h.club) parts.push("Clubs : " + h.club);
+    return parts.join("\n");
+  }
+  function getNote(cid, idx) {
+    if (notes[cid] && notes[cid][idx] != null) return notes[cid][idx];
+    return defaultNote(cid, idx);
+  }
+
+  // ---------- Onglets ----------
+  var tabButtons = document.querySelectorAll(".tab-btn");
+  var views = {
+    routine: document.getElementById("view-routine"),
+    parcours: document.getElementById("view-parcours"),
+    resume: document.getElementById("view-resume"),
+    stats: document.getElementById("view-stats"),
+    ajouter: document.getElementById("view-ajouter")
+  };
+  function switchTab(tab) {
+    tabButtons.forEach(function (b) { b.classList.toggle("active", b.dataset.tab === tab); });
+    Object.keys(views).forEach(function (k) { views[k].classList.remove("active"); });
+    views[tab].classList.add("active");
+    if (tab === "resume") renderResume();
+    if (tab === "stats") renderStats();
+    if (tab === "parcours") autoGrow(document.getElementById("holeNote"));
+    window.scrollTo(0, 0);
+  }
+  tabButtons.forEach(function (btn) {
+    btn.addEventListener("click", function () { switchTab(btn.dataset.tab); });
+  });
+
+  // ---------- En-tête ----------
+  function fmtDate(iso) {
+    return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
+  }
+  function fmtDateLong(iso) {
+    return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+  }
+  function fmtShort(iso) {
+    var d = new Date(iso);
+    return ("0" + d.getDate()).slice(-2) + "/" + ("0" + (d.getMonth() + 1)).slice(-2);
+  }
+  function signed(n) { return n > 0 ? "+" + n : (n === 0 ? "E" : String(n)); }
+
+  function renderHeader() {
+    var c = courseOf(round);
+    document.getElementById("holeNumber").textContent = round.holeIndex + 1;
+    document.getElementById("holePar").textContent = "Par " + round.holes[round.holeIndex].par +
+      (c ? " · index " + c.holes[round.holeIndex].i : "");
+    var tag = document.getElementById("dateTag");
+    tag.innerHTML = "";
+    if (c) {
+      var s = document.createElement("strong");
+      s.textContent = c.short;
+      tag.appendChild(s);
+    }
+    tag.appendChild(document.createTextNode(fmtDate(round.date)));
+    document.getElementById("prevHole").disabled = round.holeIndex === 0;
+    document.getElementById("nextHole").disabled = round.holeIndex === 17;
+  }
+
+  // ---------- Routine ----------
+  function buildRow(id, opts) {
+    opts = opts || {};
+    var row = document.createElement("div");
+    row.className = "check-row";
+    if (opts.stepNum) {
+      var num = document.createElement("span");
+      num.className = "step-num mono";
+      num.textContent = opts.stepNum + ".";
+      row.appendChild(num);
+    }
+    var cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = !!round.checks[id];
+    cb.addEventListener("change", function () {
+      round.checks[id] = cb.checked;
+      row.classList.toggle("checked", cb.checked);
+      persistRound();
+      renderProgress();
+    });
+    var txt = document.createElement("input");
+    txt.type = "text";
+    txt.value = labels[id];
+    txt.addEventListener("input", function () { labels[id] = txt.value; persistLabels(); });
+    row.appendChild(cb);
+    row.appendChild(txt);
+    if (cb.checked) row.classList.add("checked");
+    return row;
+  }
+  function renderChecklists() {
+    var preshot = document.getElementById("preshotList");
+    preshot.innerHTML = "";
+    preshotIds.forEach(function (id, i) { preshot.appendChild(buildRow(id, { stepNum: i + 1 })); });
+    var sg = document.getElementById("shortgameList");
+    sg.innerHTML = "";
+    shortgameIds.forEach(function (id) { sg.appendChild(buildRow(id)); });
+  }
+  function renderProgress() {
+    var n = allIds.filter(function (id) { return round.checks[id]; }).length;
+    document.getElementById("progressText").textContent = n + " / " + allIds.length;
+    document.getElementById("progressFill").style.width = (n / allIds.length * 100) + "%";
+  }
+  document.getElementById("resetChecks").addEventListener("click", function () {
+    round.checks = {};
+    persistRound();
+    renderChecklists();
+    renderProgress();
+  });
+
+  // ---------- Trou ----------
+  function currentHole() { return round.holes[round.holeIndex]; }
+  function renderChips(containerId, options, current, onPick) {
+    var el = document.getElementById(containerId);
+    el.innerHTML = "";
+    options.forEach(function (opt) {
+      var b = document.createElement("button");
+      b.className = "chip" + (current === opt.value ? " active" : "");
+      b.textContent = opt.label;
+      b.addEventListener("click", function () { onPick(opt.value); });
+      el.appendChild(b);
+    });
+  }
+  function renderParcours() {
+    var h = currentHole();
+    renderChips("parChips", [{ value: 3, label: "3" }, { value: 4, label: "4" }, { value: 5, label: "5" }], h.par,
+      function (v) {
+        h.par = v;
+        if (v === 3) h.fairway = "na";
+        else if (h.fairway === "na") h.fairway = null;
+        persistRound(); renderHeader(); renderParcours();
+      });
+    document.getElementById("fairwayRow").style.display = h.par === 3 ? "none" : "flex";
+    renderChips("fairwayChips", [{ value: "oui", label: "Oui" }, { value: "non", label: "Non" }], h.fairway,
+      function (v) { h.fairway = v; persistRound(); renderParcours(); });
+    renderChips("girChips", [{ value: "oui", label: "Oui" }, { value: "non", label: "Non" }], h.gir,
+      function (v) { h.gir = v; persistRound(); renderParcours(); });
+    renderChips("upDownChips", [{ value: "oui", label: "Oui" }, { value: "non", label: "Non" }, { value: "na", label: "N/A" }], h.upDown,
+      function (v) { h.upDown = v; persistRound(); renderParcours(); });
+    document.getElementById("scoreVal").textContent = h.score;
+    document.getElementById("puttsVal").textContent = h.putts;
+    renderCourseCard();
+  }
+
+  var noteEl = document.getElementById("holeNote");
+  function autoGrow(el) {
+    el.style.height = "auto";
+    el.style.height = Math.max(70, el.scrollHeight + 4) + "px";
+  }
+  function renderCourseCard() {
+    var card = document.getElementById("courseCard");
+    var c = courseOf(round);
+    if (!c) { card.style.display = "none"; return; }
+    card.style.display = "block";
+    var idx = round.holeIndex;
+    var ch = c.holes[idx];
+    var tee = teeOf(c, round.course.tee);
+    var st = strokesFor(ch.i, round.course.hcp);
+    var meta = "Par " + ch.p + " · Index " + ch.i;
+    if (ch[tee.id] != null) meta += " · " + ch[tee.id] + " m (" + tee.label.toLowerCase() + ")";
+    meta += " · " + (st === 0 ? "aucun coup reçu" : st + " coup" + (st > 1 ? "s" : "") + " reçu" + (st > 1 ? "s" : ""));
+    document.getElementById("courseTitle").textContent = c.short + " — trou " + (idx + 1);
+    document.getElementById("courseMeta").textContent = meta;
+    if (document.activeElement !== noteEl) noteEl.value = getNote(round.course.id, idx);
+    var custom = notes[round.course.id] && notes[round.course.id][idx] != null;
+    document.getElementById("noteReset").style.display = custom && defaultNote(round.course.id, idx) ? "inline" : "none";
+    autoGrow(noteEl);
+    document.getElementById("coursePts").textContent = "Score saisi : " + holeStableford(idx) + " pts sur ce trou · total " + totalStableford() + " pts";
+  }
+  noteEl.addEventListener("input", function () {
+    if (!round.course) return;
+    var cid = round.course.id;
+    notes[cid] = notes[cid] || {};
+    notes[cid][round.holeIndex] = noteEl.value;
+    persistNotes();
+    autoGrow(noteEl);
+    document.getElementById("noteReset").style.display = defaultNote(cid, round.holeIndex) ? "inline" : "none";
+  });
+  document.getElementById("noteReset").addEventListener("click", function () {
+    if (!round.course) return;
+    if (!confirm("Remettre la fiche d'origine de ce trou ? Ta note sera remplacée.")) return;
+    if (notes[round.course.id]) delete notes[round.course.id][round.holeIndex];
+    persistNotes();
+    renderCourseCard();
+  });
+
+  document.getElementById("scoreStepper").addEventListener("click", function (e) {
+    var b = e.target.closest("button");
+    if (!b) return;
+    var h = currentHole();
+    h.score = Math.max(1, h.score + parseInt(b.dataset.dir, 10));
+    persistRound(); renderParcours();
+  });
+  document.getElementById("puttsStepper").addEventListener("click", function (e) {
+    var b = e.target.closest("button");
+    if (!b) return;
+    var h = currentHole();
+    h.putts = Math.max(0, h.putts + parseInt(b.dataset.dir, 10));
+    persistRound(); renderParcours();
+  });
+
+  // ---------- Choix du parcours ----------
+  var pendingCourse = round.course ? round.course.id : COURSE_IDS[0];
+  var pendingTee = round.course ? round.course.tee : COURSES[pendingCourse].tees[0].id;
+  var pendingHcp = round.course ? round.course.hcp : COURSES[pendingCourse].tees[0].hcp;
+
+  function renderCoursePicker() {
+    var pc = COURSES[pendingCourse];
+    renderChips("courseChips", COURSE_IDS.map(function (id) { return { value: id, label: COURSES[id].short }; }), pendingCourse,
+      function (v) {
+        pendingCourse = v;
+        var t = COURSES[v].tees[0];
+        pendingTee = t.id; pendingHcp = t.hcp;
+        renderCoursePicker();
+      });
+    document.getElementById("teeRow").style.display = pc.tees.length > 1 ? "flex" : "none";
+    renderChips("teeChips", pc.tees.map(function (t) { return { value: t.id, label: t.label }; }), pendingTee,
+      function (v) { pendingTee = v; pendingHcp = teeOf(pc, v).hcp; renderCoursePicker(); });
+    document.getElementById("hcpVal").textContent = pendingHcp;
+    document.getElementById("hcpNote").textContent = pc.hcpNote || "";
+    var status = document.getElementById("courseStatus");
+    var c = courseOf(round);
+    if (c) {
+      var tee = teeOf(c, round.course.tee);
+      status.textContent = "En cours : " + c.short + (c.tees.length > 1 ? " (" + tee.label.toLowerCase() + ")" : "") +
+        ", handicap de jeu " + round.course.hcp + ", stableford calculé automatiquement.";
+    } else {
+      status.textContent = "Aucun parcours sur la partie en cours : pars à saisir à la main.";
+    }
+    var same = c && round.course.id === pendingCourse && round.course.tee === pendingTee;
+    document.getElementById("loadCourse").textContent = same ? "Recommencer une partie sur " + pc.short : "Démarrer une partie à " + pc.short;
+    document.getElementById("unloadCourse").style.display = c ? "block" : "none";
+  }
+
+  document.getElementById("hcpStepper").addEventListener("click", function (e) {
+    var b = e.target.closest("button");
+    if (!b) return;
+    pendingHcp = Math.max(0, Math.min(54, pendingHcp + parseInt(b.dataset.dir, 10)));
+    if (round.course && round.course.id === pendingCourse && round.course.tee === pendingTee) {
+      round.course.hcp = pendingHcp;
+      persistRound();
+    }
+    renderCoursePicker(); renderParcours(); renderResume();
+  });
+  document.getElementById("loadCourse").addEventListener("click", function () {
+    var pc = COURSES[pendingCourse];
+    if (!confirm("Démarrer une nouvelle partie à " + pc.short + " ? La partie en cours non enregistrée sera remplacée.")) return;
+    round = newRoundState();
+    round.course = { id: pendingCourse, tee: pendingTee, hcp: pendingHcp };
+    pc.holes.forEach(function (ch, k) { round.holes[k] = emptyHole(ch.p); });
+    persistRound();
+    renderAll();
+    switchTab("routine");
+  });
+  document.getElementById("unloadCourse").addEventListener("click", function () {
+    if (!confirm("Continuer cette partie sans parcours ? Les pars restent, le stableford n'est plus calculé.")) return;
+    delete round.course;
+    persistRound();
+    renderAll();
+  });
+
+  // ---------- Partie en cours ----------
+  function roundTotals(r) {
+    var totalScore = 0, totalPar = 0, fwHit = 0, fwCount = 0, girHit = 0, girCount = 0;
+    var putts = 0, udHit = 0, udCount = 0;
+    r.holes.forEach(function (h) {
+      totalScore += h.score;
+      totalPar += h.par;
+      if (h.fairway === "oui" || h.fairway === "non") { fwCount++; if (h.fairway === "oui") fwHit++; }
+      if (h.gir === "oui" || h.gir === "non") { girCount++; if (h.gir === "oui") girHit++; }
+      putts += h.putts;
+      if (h.upDown === "oui" || h.upDown === "non") { udCount++; if (h.upDown === "oui") udHit++; }
+    });
+    return {
+      totalScore: totalScore, totalPar: totalPar,
+      fwHit: fwHit, fwCount: fwCount, girHit: girHit, girCount: girCount, udHit: udHit, udCount: udCount,
+      fwPct: fwCount ? Math.round(fwHit / fwCount * 100) : null,
+      girPct: girCount ? Math.round(girHit / girCount * 100) : null,
+      putts: putts, avgPutts: (putts / 18).toFixed(1),
+      udPct: udCount ? Math.round(udHit / udCount * 100) : null
+    };
+  }
+  function tile(num, lbl, small) {
+    var d = document.createElement("div");
+    d.className = "stat-tile";
+    var n = document.createElement("div");
+    n.className = "num mono";
+    n.textContent = num;
+    if (small) {
+      var s = document.createElement("small");
+      s.textContent = " " + small;
+      n.appendChild(s);
+    }
+    var l = document.createElement("div");
+    l.className = "lbl";
+    l.textContent = lbl;
+    d.appendChild(n);
+    d.appendChild(l);
+    return d;
+  }
+  function pct(v) { return v === null ? "—" : v + "%"; }
+
+  function renderResume() {
+    var t = roundTotals(round);
+    var grid = document.getElementById("summaryGrid");
+    grid.innerHTML = "";
+    grid.appendChild(tile(t.totalScore, "Score total"));
+    grid.appendChild(tile(signed(t.totalScore - t.totalPar), "Vs par"));
+    if (courseOf(round)) grid.appendChild(tile(totalStableford(), "Points stableford"));
+    grid.appendChild(tile(t.putts, "Putts", "(" + t.avgPutts + "/trou)"));
+    grid.appendChild(tile(pct(t.fwPct), "Fairways"));
+    grid.appendChild(tile(pct(t.girPct), "Greens en régulation"));
+    grid.appendChild(tile(pct(t.udPct), "Up & down"));
+    renderCoursePicker();
+
+    var bars = document.getElementById("barsChart");
+    bars.innerHTML = "";
+    round.holes.forEach(function (h, i) {
+      var diff = h.score - h.par;
+      var color = "var(--ink-dim)";
+      if (diff < 0) color = "var(--fairway)";
+      else if (diff === 1) color = "var(--sand)";
+      else if (diff > 1) color = "var(--flag)";
+      var heightPct = Math.max(10, Math.min(100, 30 + diff * 18));
+      var col = document.createElement("div");
+      col.className = "bar-col";
+      col.innerHTML = '<div class="bar" style="height:' + heightPct + '%;background:' + color + '"></div>' +
+        '<div class="bar-idx">' + (i + 1) + "</div>";
+      bars.appendChild(col);
+    });
+  }
+
+  document.getElementById("finishRound").addEventListener("click", function () {
+    if (!confirm("Enregistrer cette partie dans l'historique et repartir sur une nouvelle ?")) return;
+    var t = roundTotals(round);
+    var c = courseOf(round);
+    var entry = {
+      date: round.date, totalScore: t.totalScore, totalPar: t.totalPar,
+      putts: t.putts, avgPutts: t.avgPutts,
+      fwHit: t.fwHit, fwCount: t.fwCount, girHit: t.girHit, girCount: t.girCount, udHit: t.udHit, udCount: t.udCount,
+      holes: round.holes.map(function (h, k) { return { hole: k + 1, score: h.score, par: h.par }; })
+    };
+    if (c) {
+      entry.course = c.name;
+      entry.courseId = round.course.id;
+      entry.format = "stableford";
+      entry.stablefordPoints = totalStableford();
+      entry.hcp = round.course.hcp;
+    }
+    history.push(entry);
+    persistHistory();
+    var keep = round.course ? { id: round.course.id, tee: round.course.tee, hcp: round.course.hcp } : null;
+    round = newRoundState();
+    if (keep) {
+      round.course = keep;
+      COURSES[keep.id].holes.forEach(function (ch, k) { round.holes[k] = emptyHole(ch.p); });
+    }
+    persistRound();
+    renderAll();
+    switchTab("stats");
+  });
+  document.getElementById("newRound").addEventListener("click", function () {
+    if (!confirm("Repartir sur une nouvelle partie sans enregistrer celle-ci ?")) return;
+    var keep = round.course;
+    round = newRoundState();
+    if (keep) {
+      round.course = keep;
+      COURSES[keep.id].holes.forEach(function (ch, k) { round.holes[k] = emptyHole(ch.p); });
+    }
+    persistRound();
+    renderAll();
+  });
+
+  // ---------- Stats sur toutes les parties ----------
+  var statsFilter = "all";
+  var evoMetric = "vspar";
+
+  function entryCourseId(r) {
+    if (r.courseId) return r.courseId;
+    for (var k = 0; k < COURSE_IDS.length; k++) {
+      var c = COURSES[COURSE_IDS[k]];
+      if (r.course && (r.course === c.name || r.course.toLowerCase().indexOf(c.short.toLowerCase()) >= 0)) return COURSE_IDS[k];
+    }
+    return r.course ? "other" : null;
+  }
+  function sortedHistory() {
+    return history.map(function (r, idx) { return { r: r, idx: idx }; })
+      .sort(function (a, b) { return new Date(a.r.date) - new Date(b.r.date); });
+  }
+  function filtered() {
+    return sortedHistory().filter(function (x) { return statsFilter === "all" || entryCourseId(x.r) === statsFilter; });
+  }
+  function avg(arr) { return arr.length ? arr.reduce(function (s, v) { return s + v; }, 0) / arr.length : null; }
+  function ratio(list, hitKey, cntKey) {
+    var h = 0, c = 0;
+    list.forEach(function (r) { if (r[hitKey] != null && r[cntKey]) { h += r[hitKey]; c += r[cntKey]; } });
+    return c ? Math.round(h / c * 100) : null;
+  }
+
+  function renderStats() {
+    var opts = [{ value: "all", label: "Tous" }];
+    COURSE_IDS.forEach(function (id) { opts.push({ value: id, label: COURSES[id].short }); });
+    if (history.some(function (r) { return entryCourseId(r) === "other"; })) opts.push({ value: "other", label: "Autres" });
+    renderChips("statsFilterChips", opts, statsFilter, function (v) { statsFilter = v; renderStats(); });
+
+    var list = filtered().map(function (x) { return x.r; });
+    var full = list.filter(function (r) { return !r.holes || r.holes.length === 18; });
+    var grid = document.getElementById("statsGrid");
+    grid.innerHTML = "";
+
+    if (!list.length) {
+      grid.innerHTML = '<div class="empty-note">Pas encore de partie enregistrée ici.</div>';
+    } else {
+      var scores = full.map(function (r) { return r.totalScore; });
+      var vsPar = full.map(function (r) { return r.totalScore - r.totalPar; });
+      var stb = list.filter(function (r) { return r.stablefordPoints != null; }).map(function (r) { return r.stablefordPoints; });
+      var putts = full.filter(function (r) { return r.putts != null; }).map(function (r) { return r.putts; });
+
+      grid.appendChild(tile(list.length, "Parties"));
+      grid.appendChild(scores.length ? tile(Math.round(avg(scores) * 10) / 10, "Score moyen", "(" + signed(Math.round(avg(vsPar))) + ")") : tile("—", "Score moyen"));
+      grid.appendChild(tile(scores.length ? Math.min.apply(null, scores) : "—", "Meilleur score"));
+      grid.appendChild(stb.length ? tile(Math.round(avg(stb) * 10) / 10, "Stableford moyen", "(max " + Math.max.apply(null, stb) + ")") : tile("—", "Stableford moyen"));
+      grid.appendChild(tile(putts.length ? Math.round(avg(putts) * 10) / 10 : "—", "Putts / partie"));
+      grid.appendChild(tile(pct(ratio(list, "fwHit", "fwCount")), "Fairways"));
+      grid.appendChild(tile(pct(ratio(list, "girHit", "girCount")), "Greens en régulation"));
+      grid.appendChild(tile(pct(ratio(list, "udHit", "udCount")), "Up & down"));
+    }
+
+    renderChips("evoChips", [{ value: "vspar", label: "Vs par" }, { value: "stb", label: "Stableford" }, { value: "putts", label: "Putts" }], evoMetric,
+      function (v) { evoMetric = v; renderStats(); });
+    var metricFn = {
+      vspar: function (r) { return (!r.holes || r.holes.length === 18) ? r.totalScore - r.totalPar : null; },
+      stb: function (r) { return r.stablefordPoints != null ? r.stablefordPoints : null; },
+      putts: function (r) { return (r.putts != null && (!r.holes || r.holes.length === 18)) ? r.putts : null; }
+    }[evoMetric];
+    var titles = { vspar: "Coups au-dessus du par", stb: "Points stableford", putts: "Putts par partie" };
+    document.getElementById("evoTitle").textContent = "Évolution — " + titles[evoMetric].toLowerCase();
+    var pts = list.map(function (r) { return { r: r, v: metricFn(r) }; }).filter(function (p) { return p.v != null; }).slice(-10);
+    var chart = document.getElementById("evoChart");
+    chart.innerHTML = "";
+    var evoNote = document.getElementById("evoNote");
+    if (pts.length < 2) {
+      chart.style.display = "none";
+      evoNote.textContent = pts.length ? "Une seule partie pour l'instant : la courbe apparaîtra dès la deuxième." : "Aucune donnée pour cette mesure.";
+    } else {
+      chart.style.display = "flex";
+      var vals = pts.map(function (p) { return p.v; });
+      var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+      var base = Math.min(0, lo);
+      pts.forEach(function (p, k) {
+        var h = hi === base ? 60 : 12 + 78 * (p.v - base) / (hi - base);
+        var col = document.createElement("div");
+        col.className = "bar-col";
+        var last = k === pts.length - 1;
+        col.innerHTML = '<div class="bar-val mono">' + (evoMetric === "vspar" ? signed(p.v) : p.v) + "</div>" +
+          '<div class="bar" style="height:' + h + "%;background:" + (last ? "var(--fairway)" : "var(--ink-dim)") + ';opacity:' + (last ? 1 : 0.55) + '"></div>' +
+          '<div class="bar-idx">' + fmtShort(p.r.date) + "</div>";
+        chart.appendChild(col);
+      });
+      evoNote.textContent = (evoMetric === "stb" ? "Plus c'est haut, mieux c'est." : "Plus c'est bas, mieux c'est.") +
+        " " + pts.length + " dernières parties, la plus récente en vert.";
+    }
+
+    var hist = document.getElementById("historyList");
+    hist.innerHTML = "";
+    var rows = filtered().slice().reverse();
+    if (!rows.length) {
+      hist.innerHTML = '<div class="empty-note">Aucune partie enregistrée pour l\'instant.</div>';
+    } else {
+      rows.forEach(function (x) {
+        var r = x.r;
+        var row = document.createElement("div");
+        row.className = "history-row";
+        var top = document.createElement("div");
+        top.className = "top-line";
+        var d = document.createElement("span");
+        d.className = "d";
+        d.textContent = fmtDateLong(r.date) + (r.course ? " · " + r.course : "");
+        var s = document.createElement("span");
+        s.className = "s mono";
+        s.textContent = r.totalScore + " (" + signed(r.totalScore - r.totalPar) + ")";
+        top.appendChild(d); top.appendChild(s);
+        row.appendChild(top);
+
+        var badges = "";
+        if (r.format) badges += '<span class="badge">' + (r.format === "stableford" ? "Stableford" : "Stroke") + "</span>";
+        if (r.countsForIndex) badges += '<span class="badge">Index</span>';
+        if (r.holes && r.holes.length !== 18) badges += '<span class="badge">' + r.holes.length + " trous</span>";
+        var sub = document.createElement("div");
+        sub.className = "sub-line";
+        var left = document.createElement("span");
+        left.innerHTML = badges + (r.stablefordPoints != null ? r.stablefordPoints + " pts" : "");
+        var right = document.createElement("span");
+        right.textContent = r.putts != null ? r.putts + " putts" : "";
+        sub.appendChild(left); sub.appendChild(right);
+        row.appendChild(sub);
+
+        var del = document.createElement("button");
+        del.className = "link-btn";
+        del.style.alignSelf = "flex-start";
+        del.style.color = "var(--ink-dim)";
+        del.textContent = "Supprimer";
+        del.addEventListener("click", function () {
+          if (!confirm("Supprimer la partie du " + fmtDateLong(r.date) + " ?")) return;
+          history.splice(x.idx, 1);
+          persistHistory();
+          renderStats();
+        });
+        row.appendChild(del);
+        hist.appendChild(row);
+      });
+    }
+  }
+
+  document.getElementById("clearHistory").addEventListener("click", function () {
+    if (!confirm("Effacer TOUT l'historique des parties ? Pense à exporter une sauvegarde avant.")) return;
+    history = [];
+    persistHistory();
+    renderStats();
+  });
+
+  // ---------- Sauvegarde ----------
+  document.getElementById("exportBtn").addEventListener("click", function () {
+    var data = { app: "carnet-golf", version: 2, exportedAt: new Date().toISOString(), history: history, notes: notes, labels: labels, round: round };
+    var blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "carnet-golf-" + new Date().toISOString().slice(0, 10) + ".json";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  });
+  document.getElementById("importBtn").addEventListener("click", function () { document.getElementById("importFile").click(); });
+  document.getElementById("importFile").addEventListener("change", function (e) {
+    var f = e.target.files[0];
+    if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var data = JSON.parse(reader.result);
+        if (data.app !== "carnet-golf" || !Array.isArray(data.history)) throw new Error("format");
+        if (!confirm("Remplacer tes données actuelles par cette sauvegarde (" + data.history.length + " parties) ?")) return;
+        history = data.history;
+        notes = data.notes || {};
+        if (data.labels) labels = Object.assign({}, defaultLabels, data.labels);
+        if (data.round && data.round.holes && data.round.holes.length === 18) round = data.round;
+        persistHistory(); persistNotes(); persistLabels(); persistRound();
+        saveJSON(LS_SEEDED, true);
+        renderAll();
+        renderStats();
+        alert("Sauvegarde restaurée.");
+      } catch (err) {
+        alert("Ce fichier n'est pas une sauvegarde du carnet.");
+      }
+      e.target.value = "";
+    };
+    reader.readAsText(f);
+  });
+
+  // ---------- Ajouter une partie (saisie rétroactive) ----------
+  var addFormat = "stableford";
+  var addCountsForIndex = true;
+  var addParsedHoles = null;
+  document.getElementById("addDate").value = new Date().toISOString().slice(0, 10);
+
+  function renderAddFormatChips() {
+    renderChips("addFormatChips", [{ value: "stroke", label: "Stroke" }, { value: "stableford", label: "Stableford" }], addFormat,
+      function (v) { addFormat = v; renderAddFormatChips(); });
+  }
+  function renderAddIndexChips() {
+    renderChips("addIndexChips", [{ value: true, label: "Oui" }, { value: false, label: "Non" }], addCountsForIndex,
+      function (v) { addCountsForIndex = v; renderAddIndexChips(); });
+  }
+  renderAddFormatChips();
+  renderAddIndexChips();
+
+  function parseHolesText(text) {
+    var re = /(\d+)\s*:\s*(\d+)\s*\/\s*(\d+)/g;
+    var out = [], m;
+    while ((m = re.exec(text)) !== null) {
+      out.push({ hole: parseInt(m[1], 10), score: parseInt(m[2], 10), par: parseInt(m[3], 10) });
+    }
+    out.sort(function (a, b) { return a.hole - b.hole; });
+    return out;
+  }
+  document.getElementById("addParseBtn").addEventListener("click", function () {
+    var holes = parseHolesText(document.getElementById("addHolesText").value);
+    var preview = document.getElementById("addHolesPreview");
+    if (!holes.length) {
+      addParsedHoles = null;
+      preview.textContent = "Aucun trou reconnu — vérifie le format \"trou: score/par\".";
+      return;
+    }
+    addParsedHoles = holes;
+    var ts = holes.reduce(function (s, h) { return s + h.score; }, 0);
+    var tp = holes.reduce(function (s, h) { return s + h.par; }, 0);
+    preview.textContent = holes.length + " trous reconnus — score total " + ts + " / par " + tp + " (" + signed(ts - tp) + ")";
+  });
+  document.getElementById("addSaveBtn").addEventListener("click", function () {
+    var course = document.getElementById("addCourse").value.trim();
+    var dateVal = document.getElementById("addDate").value;
+    if (!dateVal) { alert("Renseigne une date."); return; }
+    if (!addParsedHoles) {
+      document.getElementById("addParseBtn").click();
+      if (!addParsedHoles) { alert("Renseigne et analyse le détail trou par trou avant d'enregistrer."); return; }
+    }
+    function numOrNull(id) {
+      var v = document.getElementById(id).value;
+      return v === "" ? null : parseInt(v, 10);
+    }
+    var ts = addParsedHoles.reduce(function (s, h) { return s + h.score; }, 0);
+    var tp = addParsedHoles.reduce(function (s, h) { return s + h.par; }, 0);
+    var putts = numOrNull("addPutts");
+    var entry = {
+      date: new Date(dateVal + "T12:00:00").toISOString(),
+      course: course || null,
+      format: addFormat,
+      countsForIndex: addCountsForIndex,
+      totalScore: ts, totalPar: tp,
+      holes: addParsedHoles,
+      putts: putts,
+      avgPutts: putts !== null ? (putts / addParsedHoles.length).toFixed(1) : null,
+      fwHit: numOrNull("addFwHit"), fwCount: numOrNull("addFwCount"),
+      girHit: numOrNull("addGirHit"), girCount: numOrNull("addGirCount"),
+      udHit: numOrNull("addUdHit"), udCount: numOrNull("addUdCount"),
+      stablefordPoints: numOrNull("addStableford")
+    };
+    var cid = entryCourseId(entry);
+    if (cid && cid !== "other") entry.courseId = cid;
+    history.push(entry);
+    persistHistory();
+
+    document.getElementById("addCourse").value = "";
+    document.getElementById("addHolesText").value = "";
+    document.getElementById("addHolesPreview").textContent = "";
+    ["addPutts", "addFwHit", "addFwCount", "addGirHit", "addGirCount", "addUdHit", "addUdCount", "addStableford"].forEach(function (id) {
+      document.getElementById(id).value = "";
+    });
+    addParsedHoles = null;
+    switchTab("stats");
+    alert("Partie enregistrée dans l'historique.");
+  });
+
+  // ---------- Navigation entre trous ----------
+  document.getElementById("prevHole").addEventListener("click", function () {
+    if (round.holeIndex === 0) return;
+    round.holeIndex--;
+    round.checks = {};
+    persistRound();
+    renderAll();
+  });
+  document.getElementById("nextHole").addEventListener("click", function () {
+    if (round.holeIndex === 17) return;
+    round.holeIndex++;
+    round.checks = {};
+    persistRound();
+    renderAll();
+  });
+
+  function renderAll() {
+    renderHeader();
+    renderChecklists();
+    renderProgress();
+    renderParcours();
+    renderResume();
+    if (views.stats.classList.contains("active")) renderStats();
+  }
+  renderAll();
+
+  // ---------- Hors ligne ----------
+  if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
+    navigator.serviceWorker.register("sw.js").catch(function () {});
+  }
+})();
+</script>
+</body>
+</html>
