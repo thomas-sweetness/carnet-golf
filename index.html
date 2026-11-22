@@ -469,6 +469,14 @@
           <div class="field-label">Parcours</div>
           <div class="chip-group" id="courseChips"></div>
         </div>
+        <div class="field-row" id="loopOutRow" style="display:none;">
+          <div class="field-label">Aller</div>
+          <div class="chip-group" id="loopOutChips"></div>
+        </div>
+        <div class="field-row" id="loopInRow" style="display:none;">
+          <div class="field-label">Retour</div>
+          <div class="chip-group" id="loopInChips"></div>
+        </div>
         <div class="field-row" id="teeRow">
           <div class="field-label">Départs</div>
           <div class="chip-group" id="teeChips"></div>
@@ -617,6 +625,10 @@
         <div class="field-row"><div class="field-label">Nom</div></div>
         <input class="text-input" type="text" id="ceName" placeholder="Ex. Golf du Sart" />
         <div class="field-row" style="margin-top:6px;">
+          <div class="field-label">Nombre de trous</div>
+          <div class="chip-group" id="ceCount"></div>
+        </div>
+        <div class="field-row" style="margin-top:6px;">
           <div>
             <div class="field-label">Ton handicap de jeu ici</div>
             <div class="field-sub">modifiable à chaque partie</div>
@@ -627,7 +639,7 @@
       </div>
       <div class="card">
         <h2>Par et index de chaque trou</h2>
-        <div class="field-sub" style="margin-bottom:6px;">L'index (1 à 18, sur la carte de score) sert au calcul du stableford.</div>
+        <div class="field-sub" style="margin-bottom:6px;">L'index (sur la carte de score) sert au calcul du stableford.</div>
         <div class="hole-edit-row" style="font-size:11px;color:var(--ink-dim);font-weight:700;text-transform:uppercase;">
           <span>Trou</span><span>Par</span><span style="text-align:center;">Index</span>
         </div>
@@ -723,32 +735,81 @@
       name: "Golf de Mérignies",
       short: "Mérignies",
       tees: [{ id: "std", label: "Habituels", hcp: 14 }],
-      hcpNote: "≈ 14 avec l'index 13.6 (slope 125, SSS 70.1)",
-      loops: "La Valutte + Rupilly",
+      hcpNote: "≈ 14 en 18 trous avec l'index 13.6 (blancs Valutte + Rupilly) · ≈ 7 en 9 trous",
+      defaultLoops: ["valutte", "rupilly"],
+      // Index de trou par association de boucles (cartes de score du club)
+      pairIndex: {
+        "rupilly|valutte": { valutte: [17,7,13,11,5,1,15,9,3], rupilly: [2,4,18,14,12,6,8,10,16] },
+        "rupilly|vdm": { vdm: [15,9,13,11,7,5,3,17,1], rupilly: [2,4,18,14,12,6,8,10,16] },
+        "valutte|vdm": { valutte: [12,10,8,14,6,2,16,18,4], vdm: [15,9,13,11,7,5,3,17,1] }
+      },
+      loops: {
+        valutte: { name: "La Valutte", holes: [
+            {p:4,r:9,g:{tee:[50.511687,3.141576],c:[50.513923,3.143415],f:[50.513818,3.143371],b:[50.514028,3.143459],est:1}},
+            {p:3,r:4,g:{tee:[50.514290,3.144271],c:[50.515431,3.145263],f:[50.515336,3.145180],b:[50.515525,3.145345],est:1}},
+            {p:5,r:7,g:{tee:[50.515320,3.147044],c:[50.516563,3.141862],f:[50.516543,3.142028],b:[50.516583,3.141695],est:1}},
+            {p:3,r:6,g:{tee:[50.516658,3.143471],c:[50.517121,3.141848],f:[50.517077,3.142003],b:[50.517165,3.141693],est:1}},
+            {p:4,r:3,g:{tee:[50.517569,3.141739],c:[50.516200,3.146202],f:[50.516242,3.146045],b:[50.516158,3.146358],est:1}},
+            {p:4,r:1,g:{tee:[50.515449,3.147132],c:[50.513399,3.152304],f:[50.513466,3.152170],b:[50.513332,3.152437],est:1}},
+            {p:4,r:8,g:{tee:[50.513050,3.152435],c:[50.514602,3.148696],f:[50.514524,3.148815],b:[50.514679,3.148577],est:1}},
+            {p:3,r:5,g:{tee:[50.513851,3.148782],c:[50.514900,3.147639],f:[50.514811,3.147736],b:[50.514989,3.147542],est:1}},
+            {p:4,r:2,g:{tee:[50.515279,3.145807],c:[50.512507,3.143479],f:[50.512588,3.143592],b:[50.512426,3.143366],est:1}}
+          ] },
+        rupilly: { name: "Rupilly", holes: [
+            {p:4,r:1,g:{tee:[50.508854,3.142232],c:[50.505171,3.142232],f:[50.505276,3.142192],b:[50.505065,3.142272],est:1}},
+            {p:3,r:2,g:{tee:[50.504311,3.142334],c:[50.504875,3.144528],f:[50.504835,3.144371],b:[50.504916,3.144685],est:1}},
+            {p:5,r:9,g:{tee:[50.505091,3.144963],c:[50.506934,3.150850],f:[50.506878,3.150705],b:[50.506991,3.150995],est:1}},
+            {p:3,r:7,g:{tee:[50.506696,3.151502],c:[50.505845,3.149377],f:[50.505902,3.149521],b:[50.505787,3.149234],est:1}},
+            {p:5,r:6,g:{tee:[50.505560,3.149058],c:[50.503857,3.142600],f:[50.503905,3.142752],b:[50.503809,3.142447],est:1}},
+            {p:4,r:3,g:{tee:[50.503579,3.142221],c:[50.505652,3.138222],f:[50.505605,3.138375],b:[50.505699,3.138069],est:1}},
+            {p:4,r:4,g:{tee:[50.505655,3.137157],c:[50.507634,3.140261],f:[50.507535,3.140192],b:[50.507733,3.140329],est:1}},
+            {p:4,r:5,g:{tee:[50.507723,3.141060],c:[50.504686,3.141757],f:[50.504777,3.141666],b:[50.504595,3.141849],est:1}},
+            {p:5,r:8,g:{tee:[50.505111,3.142986],c:[50.509278,3.143350],f:[50.509171,3.143323],b:[50.509385,3.143378],est:1}}
+          ] },
+        vdm: { name: "Val de Marque", holes: [
+            {p:4,r:8,g:{tee:[50.511753,3.139330],c:[50.513788,3.136232],f:[50.513703,3.136337],b:[50.513873,3.136127],est:1}},
+            {p:5,r:5,g:{tee:[50.513667,3.137334],c:[50.517445,3.133893],f:[50.517342,3.133948],b:[50.517548,3.133838],est:1}},
+            {p:4,r:7,g:{tee:[50.517842,3.130809],c:[50.515327,3.129296],f:[50.515372,3.129450],b:[50.515281,3.129142],est:1}},
+            {p:5,r:6,g:{tee:[50.515755,3.128813],c:[50.514368,3.122998],f:[50.514385,3.123165],b:[50.514351,3.122830],est:1}},
+            {p:3,r:4,g:{tee:[50.514387,3.122394],c:[50.512946,3.122995],f:[50.513050,3.122951],b:[50.512841,3.123039],est:1}},
+            {p:5,r:3,g:{tee:[50.512709,3.125221],c:[50.513720,3.132134],f:[50.513713,3.131964],b:[50.513727,3.132303],est:1}},
+            {p:3,r:2,g:{tee:[50.513427,3.132984],c:[50.512744,3.130792],f:[50.512792,3.130945],b:[50.512697,3.130640],est:1}},
+            {p:4,r:9,g:{tee:[50.512048,3.131594],c:[50.509911,3.134923],f:[50.509988,3.134803],b:[50.509834,3.135043],est:1}},
+            {p:4,r:1,g:{tee:[50.511122,3.136398],c:[50.509623,3.141505],f:[50.509633,3.141336],b:[50.509612,3.141674],est:1}}
+          ] }
+      }
+    },
+    vertparc: {
+      name: "Golf du Vert Parc",
+      short: "Vert Parc",
+      tees: [{ id: "j", label: "Jaunes", hcp: 15 }],
+      hcpNote: "≈ 15 avec l'index 13.6 (jaunes, slope 132, SSS 70.2)",
+      center: [50.57015, 2.83700],
       holes: [
-        {p:4,i:17,g:{tee:[50.511687,3.141576],c:[50.513923,3.143415],f:[50.513818,3.143371],b:[50.514028,3.143459],est:1}},
-        {p:3,i:7,g:{tee:[50.514290,3.144271],c:[50.515431,3.145263],f:[50.515336,3.145180],b:[50.515525,3.145345],est:1}},
-        {p:5,i:13,g:{tee:[50.515320,3.147044],c:[50.516563,3.141862],f:[50.516543,3.142028],b:[50.516583,3.141695],est:1}},
-        {p:3,i:11,g:{tee:[50.516658,3.143471],c:[50.517121,3.141848],f:[50.517077,3.142003],b:[50.517165,3.141693],est:1}},
-        {p:4,i:5,g:{tee:[50.517569,3.141739],c:[50.516200,3.146202],f:[50.516242,3.146045],b:[50.516158,3.146358],est:1}},
-        {p:4,i:1,g:{tee:[50.515449,3.147132],c:[50.513399,3.152304],f:[50.513466,3.152170],b:[50.513332,3.152437],est:1}},
-        {p:4,i:15,g:{tee:[50.513050,3.152435],c:[50.514602,3.148696],f:[50.514524,3.148815],b:[50.514679,3.148577],est:1}},
-        {p:3,i:9,g:{tee:[50.513851,3.148782],c:[50.514900,3.147639],f:[50.514811,3.147736],b:[50.514989,3.147542],est:1}},
-        {p:4,i:3,g:{tee:[50.515279,3.145807],c:[50.512507,3.143479],f:[50.512588,3.143592],b:[50.512426,3.143366],est:1}},
-        {p:4,i:2,g:{tee:[50.508854,3.142232],c:[50.505171,3.142232],f:[50.505276,3.142192],b:[50.505065,3.142272],est:1}},
-        {p:3,i:4,g:{tee:[50.504311,3.142334],c:[50.504875,3.144528],f:[50.504835,3.144371],b:[50.504916,3.144685],est:1}},
-        {p:5,i:18,g:{tee:[50.505091,3.144963],c:[50.506934,3.150850],f:[50.506878,3.150705],b:[50.506991,3.150995],est:1}},
-        {p:3,i:14,g:{tee:[50.506696,3.151502],c:[50.505845,3.149377],f:[50.505902,3.149521],b:[50.505787,3.149234],est:1}},
-        {p:5,i:12,g:{tee:[50.505560,3.149058],c:[50.503857,3.142600],f:[50.503905,3.142752],b:[50.503809,3.142447],est:1}},
-        {p:4,i:6,g:{tee:[50.503579,3.142221],c:[50.505652,3.138222],f:[50.505605,3.138375],b:[50.505699,3.138069],est:1}},
-        {p:4,i:8,g:{tee:[50.505655,3.137157],c:[50.507634,3.140261],f:[50.507535,3.140192],b:[50.507733,3.140329],est:1}},
-        {p:4,i:10,g:{tee:[50.507723,3.141060],c:[50.504686,3.141757],f:[50.504777,3.141666],b:[50.504595,3.141849],est:1}},
-        {p:5,i:16,g:{tee:[50.505111,3.142986],c:[50.509278,3.143350],f:[50.509171,3.143323],b:[50.509385,3.143378],est:1}}
+        {p:5,i:8,j:483},
+        {p:3,i:18,j:124},
+        {p:5,i:5,j:389},
+        {p:4,i:11,j:306},
+        {p:3,i:7,j:192},
+        {p:5,i:14,j:398},
+        {p:3,i:17,j:153},
+        {p:4,i:6,j:348},
+        {p:5,i:16,j:443},
+        {p:3,i:10,j:182},
+        {p:4,i:2,j:339},
+        {p:5,i:15,j:411},
+        {p:4,i:3,j:344},
+        {p:4,i:12,j:304},
+        {p:3,i:13,j:160},
+        {p:4,i:1,j:383},
+        {p:3,i:4,j:168},
+        {p:4,i:9,j:296}
       ]
     }
   };
   BUILTIN.barbaroux.center = [43.40622, 6.17148];
   BUILTIN.merignies.center = [50.51053, 3.13689];
+  BUILTIN.vertparc.center = [50.57015, 2.83700];
   var LS_UCOURSES = "golf_courses_v1";
   var LS_GEO = "golf_geo_v1";
   var userCourses = loadJSON(LS_UCOURSES, {});
@@ -757,18 +818,78 @@
   function rebuildCourses() {
     COURSES = Object.assign({}, BUILTIN, userCourses);
     COURSE_IDS = Object.keys(COURSES);
+    resolvedCache = { k: "", v: null };
   }
   rebuildCourses();
   function persistCourses() { saveJSON(LS_UCOURSES, userCourses); rebuildCourses(); }
   function persistGeo() { saveJSON(LS_GEO, geoOver); }
-  function holeGeo(cid, idx) {
-    var base = (COURSES[cid] && COURSES[cid].holes[idx] && COURSES[cid].holes[idx].g) || {};
-    var o = (geoOver[cid] && geoOver[cid][idx]) || {};
+  // Un trou est identifié par une clé : son numéro (0..17) sur un parcours simple,
+  // ou "boucle-n" sur un golf à boucles de 9 trous combinables (Mérignies).
+  function rawHole(cid, key) {
+    var c = COURSES[cid];
+    if (!c) return null;
+    if (c.loops) {
+      var m = String(key).match(/^(.+)-(\d+)$/);
+      return m && c.loops[m[1]] ? c.loops[m[1]].holes[+m[2] - 1] : null;
+    }
+    return c.holes[key] || null;
+  }
+  function allKeys(cid) {
+    var c = COURSES[cid], out = [];
+    if (!c) return out;
+    if (c.loops) Object.keys(c.loops).forEach(function (l) { for (var n = 1; n <= 9; n++) out.push(l + "-" + n); });
+    else c.holes.forEach(function (h, k) { out.push(k); });
+    return out;
+  }
+  function holeGeo(cid, key) {
+    var h = rawHole(cid, key);
+    var base = (h && h.g) || {};
+    var o = (geoOver[cid] && geoOver[cid][key]) || {};
     var g = Object.assign({}, base, o);
     Object.keys(g).forEach(function (k) { if (g[k] === null) delete g[k]; });
     return g;
   }
-  function courseOf(r) { return r && r.course && COURSES[r.course.id] ? COURSES[r.course.id] : null; }
+  function loopsLabel(c, loops) {
+    return loops.map(function (l) { return c.loops[l].name; }).join(" + ");
+  }
+  // Parcours « résolu » pour une partie : liste des trous joués, dans l'ordre
+  var resolvedCache = { k: "", v: null };
+  function resolveCourse(cid, loops) {
+    var c = COURSES[cid];
+    if (!c) return null;
+    var ck = cid + "|" + (loops || []).join(",") + "|" + JSON.stringify(c.holes ? c.holes.length : 0);
+    if (resolvedCache.k === ck && resolvedCache.v) return resolvedCache.v;
+    var holes;
+    if (c.loops) {
+      loops = loops && loops.length ? loops : c.defaultLoops;
+      var pk = loops.slice().sort().join("|");
+      var table = loops.length === 2 && c.pairIndex ? c.pairIndex[pk] : null;
+      holes = [];
+      loops.forEach(function (l, li) {
+        c.loops[l].holes.forEach(function (h, n) {
+          var i;
+          if (loops.length === 1) i = h.r;
+          else if (table && table[l]) i = table[l][n];
+          else i = li === 0 ? 2 * h.r - 1 : 2 * h.r;
+          holes.push(Object.assign({}, h, { i: i, key: l + "-" + (n + 1), loopName: c.loops[l].name }));
+        });
+      });
+    } else {
+      holes = c.holes.map(function (h, k) { return Object.assign({}, h, { key: k }); });
+    }
+    var v = Object.assign({}, c, { id: cid, holes: holes, loopsSel: loops || null,
+      fullName: c.loops ? c.name + " (" + loopsLabel(c, loops) + ")" : c.name });
+    resolvedCache = { k: ck, v: v };
+    return v;
+  }
+  function courseOf(r) {
+    return r && r.course && COURSES[r.course.id] ? resolveCourse(r.course.id, r.course.loops) : null;
+  }
+  function curKey(idx) {
+    var c = courseOf(round);
+    var k = idx == null ? round.holeIndex : idx;
+    return c && c.holes[k] ? c.holes[k].key : k;
+  }
   function teeOf(c, teeId) {
     for (var k = 0; k < c.tees.length; k++) if (c.tees[k].id === teeId) return c.tees[k];
     return c.tees[0];
@@ -789,18 +910,31 @@
   function emptyHole(par) {
     return { par: par || 4, score: par || 4, fairway: par === 3 ? "na" : null, gir: null, putts: 2, upDown: null };
   }
-  function newRoundState() {
+  function newRoundState(n) {
     var holes = [];
-    for (var i = 0; i < 18; i++) holes.push(emptyHole(4));
+    for (var i = 0; i < (n || 18); i++) holes.push(emptyHole(4));
     return { date: new Date().toISOString(), holeIndex: 0, checks: {}, holes: holes };
   }
 
   var round = loadJSON(LS_ROUND, null);
-  if (!round || !round.holes || round.holes.length !== 18) round = newRoundState();
+  if (!round || !round.holes || (round.holes.length !== 18 && round.holes.length !== 9)) round = newRoundState();
   if (round.course && !COURSES[round.course.id]) delete round.course;
 
   var history = loadJSON(LS_HISTORY, []);
   var notes = loadJSON(LS_NOTES, {});
+
+  // Ancienne version : Mérignies était un 18 trous fixe Valutte + Rupilly (trous 0..17)
+  (function migrateMerignies() {
+    var map = function (k) { k = +k; return k < 9 ? "valutte-" + (k + 1) : "rupilly-" + (k - 8); };
+    [geoOver, notes].forEach(function (store) {
+      var s = store.merignies;
+      if (!s) return;
+      Object.keys(s).forEach(function (k) { if (/^\d+$/.test(k)) { s[map(k)] = s[k]; delete s[k]; } });
+    });
+    if (round.course && round.course.id === "merignies" && !round.course.loops) round.course.loops = ["valutte", "rupilly"];
+    saveJSON(LS_GEO, geoOver);
+    saveJSON(LS_NOTES, notes);
+  })();
 
   // Partie déjà jouée, injectée une seule fois : Mérignies 23/07/2026
   if (!loadJSON(LS_SEEDED, false)) {
@@ -825,35 +959,38 @@
   function persistNotes() { saveJSON(LS_NOTES, notes); }
 
   // ---------- Stableford ----------
-  function strokesFor(si, hcp) {
-    if (!si) return Math.floor(hcp / 18);
-    return Math.floor(hcp / 18) + (si <= hcp % 18 ? 1 : 0);
+  // n = nombre de trous de la partie (9 ou 18) : sur 9 trous l'index va de 1 à 9
+  function strokesFor(si, hcp, n) {
+    n = n || 18;
+    if (!si) return Math.floor(hcp / n);
+    return Math.floor(hcp / n) + (si <= hcp % n ? 1 : 0);
   }
   function holeStableford(idx) {
     var c = courseOf(round);
     if (!c) return null;
     var h = round.holes[idx];
-    return Math.max(0, h.par + strokesFor(c.holes[idx].i, round.course.hcp) + 2 - h.score);
+    return Math.max(0, h.par + strokesFor(c.holes[idx].i, round.course.hcp, round.holes.length) + 2 - h.score);
   }
   function totalStableford() {
     if (!courseOf(round)) return null;
     var s = 0;
-    for (var k = 0; k < 18; k++) s += holeStableford(k);
+    for (var k = 0; k < round.holes.length; k++) s += holeStableford(k);
     return s;
   }
 
   // ---------- Notes par trou ----------
-  function defaultNote(cid, idx) {
-    var h = COURSES[cid].holes[idx];
+  function defaultNote(cid, key) {
+    var h = rawHole(cid, key);
+    if (!h) return "";
     var parts = [];
     if (h.danger) parts.push("Danger : " + h.danger);
     if (h.plan) parts.push("Plan : " + h.plan);
     if (h.club) parts.push("Clubs : " + h.club);
     return parts.join("\n");
   }
-  function getNote(cid, idx) {
-    if (notes[cid] && notes[cid][idx] != null) return notes[cid][idx];
-    return defaultNote(cid, idx);
+  function getNote(cid, key) {
+    if (notes[cid] && notes[cid][key] != null) return notes[cid][key];
+    return defaultNote(cid, key);
   }
 
   // ---------- Onglets ----------
@@ -906,12 +1043,13 @@
     tag.innerHTML = "";
     if (c) {
       var s = document.createElement("strong");
-      s.textContent = c.short;
+      var ln = c.holes[round.holeIndex] && c.holes[round.holeIndex].loopName;
+      s.textContent = c.short + (ln ? " · " + ln : "");
       tag.appendChild(s);
     }
     tag.appendChild(document.createTextNode(fmtDate(round.date)));
     document.getElementById("prevHole").disabled = round.holeIndex === 0;
-    document.getElementById("nextHole").disabled = round.holeIndex === 17;
+    document.getElementById("nextHole").disabled = round.holeIndex === round.holes.length - 1;
   }
 
   // ---------- Routine ----------
@@ -1016,9 +1154,10 @@
     meta += " · " + (st === 0 ? "aucun coup reçu" : st + " coup" + (st > 1 ? "s" : "") + " reçu" + (st > 1 ? "s" : ""));
     document.getElementById("courseTitle").textContent = c.short + " — trou " + (idx + 1);
     document.getElementById("courseMeta").textContent = meta;
-    if (document.activeElement !== noteEl) noteEl.value = getNote(round.course.id, idx);
-    var custom = notes[round.course.id] && notes[round.course.id][idx] != null;
-    document.getElementById("noteReset").style.display = custom && defaultNote(round.course.id, idx) ? "inline" : "none";
+    var hk = curKey(idx);
+    if (document.activeElement !== noteEl) noteEl.value = getNote(round.course.id, hk);
+    var custom = notes[round.course.id] && notes[round.course.id][hk] != null;
+    document.getElementById("noteReset").style.display = custom && defaultNote(round.course.id, hk) ? "inline" : "none";
     autoGrow(noteEl);
     document.getElementById("coursePts").textContent = "Score saisi : " + holeStableford(idx) + " pts sur ce trou · total " + totalStableford() + " pts";
   }
@@ -1026,15 +1165,15 @@
     if (!round.course) return;
     var cid = round.course.id;
     notes[cid] = notes[cid] || {};
-    notes[cid][round.holeIndex] = noteEl.value;
+    notes[cid][curKey()] = noteEl.value;
     persistNotes();
     autoGrow(noteEl);
-    document.getElementById("noteReset").style.display = defaultNote(cid, round.holeIndex) ? "inline" : "none";
+    document.getElementById("noteReset").style.display = defaultNote(cid, curKey()) ? "inline" : "none";
   });
   document.getElementById("noteReset").addEventListener("click", function () {
     if (!round.course) return;
     if (!confirm("Remettre la fiche d'origine de ce trou ? Ta note sera remplacée.")) return;
-    if (notes[round.course.id]) delete notes[round.course.id][round.holeIndex];
+    if (notes[round.course.id]) delete notes[round.course.id][curKey()];
     persistNotes();
     renderCourseCard();
   });
@@ -1058,44 +1197,78 @@
   var pendingCourse = round.course ? round.course.id : COURSE_IDS[0];
   var pendingTee = round.course ? round.course.tee : COURSES[pendingCourse].tees[0].id;
   var pendingHcp = round.course ? round.course.hcp : COURSES[pendingCourse].tees[0].hcp;
+  var pendingLoops = round.course && round.course.loops ? round.course.loops.slice() : null;
+
+  function defaultHcpFor(c, teeId, loops) {
+    var h = teeOf(c, teeId).hcp;
+    return loops && loops.length === 1 ? Math.round(h / 2) : h;
+  }
+  function selectCourse(v) {
+    pendingCourse = v;
+    var c = COURSES[v];
+    pendingTee = c.tees[0].id;
+    pendingLoops = c.loops ? c.defaultLoops.slice() : null;
+    pendingHcp = defaultHcpFor(c, pendingTee, pendingLoops);
+  }
+  function sameAsRound() {
+    return !!round.course && round.course.id === pendingCourse && round.course.tee === pendingTee &&
+      String(round.course.loops || "") === String(pendingLoops || "");
+  }
 
   function renderCoursePicker() {
-    if (!COURSES[pendingCourse]) {
-      pendingCourse = COURSE_IDS[0];
-      pendingTee = COURSES[pendingCourse].tees[0].id;
-      pendingHcp = COURSES[pendingCourse].tees[0].hcp;
-    }
+    if (!COURSES[pendingCourse]) selectCourse(COURSE_IDS[0]);
     var pc = COURSES[pendingCourse];
+    if (pc.loops && !pendingLoops) pendingLoops = pc.defaultLoops.slice();
+    if (!pc.loops) pendingLoops = null;
     var isUser = !!userCourses[pendingCourse];
     document.getElementById("courseEdit").style.display = isUser ? "block" : "none";
     document.getElementById("courseDelete").style.display = isUser ? "block" : "none";
     var placed = 0;
-    for (var q = 0; q < 18; q++) if (holeGeo(pendingCourse, q).c) placed++;
-    document.getElementById("courseManageNote").textContent = pc.short + " : " + placed + "/18 greens placés sur la carte" +
-      (placed < 18 ? " (complète-les depuis l'onglet Carte → Placer les points)." : ".");
+    var keys = allKeys(pendingCourse);
+    keys.forEach(function (k) { if (holeGeo(pendingCourse, k).c) placed++; });
+    document.getElementById("courseManageNote").textContent = pc.short + " : " + placed + "/" + keys.length + " greens placés sur la carte" +
+      (placed < keys.length ? " (complète-les depuis l'onglet Carte → Placer les points)." : ".");
     renderChips("courseChips", COURSE_IDS.map(function (id) { return { value: id, label: COURSES[id].short }; }), pendingCourse,
-      function (v) {
-        pendingCourse = v;
-        var t = COURSES[v].tees[0];
-        pendingTee = t.id; pendingHcp = t.hcp;
+      function (v) { selectCourse(v); renderCoursePicker(); });
+
+    document.getElementById("loopOutRow").style.display = pc.loops ? "flex" : "none";
+    document.getElementById("loopInRow").style.display = pc.loops ? "flex" : "none";
+    if (pc.loops) {
+      var ids = Object.keys(pc.loops);
+      renderChips("loopOutChips", ids.map(function (l) { return { value: l, label: pc.loops[l].name }; }), pendingLoops[0],
+        function (v) {
+          pendingLoops[0] = v;
+          if (pendingLoops[1] === v) pendingLoops[1] = ids.filter(function (x) { return x !== v; })[0];
+          renderCoursePicker();
+        });
+      var inOpts = [{ value: "", label: "Aucun (9 trous)" }].concat(ids.filter(function (l) { return l !== pendingLoops[0]; })
+        .map(function (l) { return { value: l, label: pc.loops[l].name }; }));
+      renderChips("loopInChips", inOpts, pendingLoops[1] || "", function (v) {
+        var before = pendingLoops.length;
+        pendingLoops = v ? [pendingLoops[0], v] : [pendingLoops[0]];
+        if (before !== pendingLoops.length) pendingHcp = defaultHcpFor(pc, pendingTee, pendingLoops);
         renderCoursePicker();
       });
+    }
+
     document.getElementById("teeRow").style.display = pc.tees.length > 1 ? "flex" : "none";
     renderChips("teeChips", pc.tees.map(function (t) { return { value: t.id, label: t.label }; }), pendingTee,
-      function (v) { pendingTee = v; pendingHcp = teeOf(pc, v).hcp; renderCoursePicker(); });
+      function (v) { pendingTee = v; pendingHcp = defaultHcpFor(pc, v, pendingLoops); renderCoursePicker(); });
     document.getElementById("hcpVal").textContent = pendingHcp;
-    document.getElementById("hcpNote").textContent = pc.hcpNote || "";
+    var nbHoles = pc.loops ? pendingLoops.length * 9 : pc.holes.length;
+    document.getElementById("hcpNote").textContent = (nbHoles === 9 ? "Partie de 9 trous. " : "") + (pc.hcpNote || "");
     var status = document.getElementById("courseStatus");
     var c = courseOf(round);
     if (c) {
       var tee = teeOf(c, round.course.tee);
-      status.textContent = "En cours : " + c.short + (c.tees.length > 1 ? " (" + tee.label.toLowerCase() + ")" : "") +
-        ", handicap de jeu " + round.course.hcp + ", stableford calculé automatiquement.";
+      status.textContent = "En cours : " + (c.loopsSel ? c.short + " " + loopsLabel(c, c.loopsSel) : c.short) +
+        (c.tees.length > 1 ? " (" + tee.label.toLowerCase() + ")" : "") + ", " + round.holes.length + " trous, handicap de jeu " +
+        round.course.hcp + ", stableford calculé automatiquement.";
     } else {
       status.textContent = "Aucun parcours sur la partie en cours : pars à saisir à la main.";
     }
-    var same = c && round.course.id === pendingCourse && round.course.tee === pendingTee;
-    document.getElementById("loadCourse").textContent = same ? "Recommencer une partie sur " + pc.short : "Démarrer une partie à " + pc.short;
+    var label = pc.loops ? pc.short + " " + loopsLabel(pc, pendingLoops) : pc.short;
+    document.getElementById("loadCourse").textContent = (sameAsRound() ? "Recommencer : " : "Démarrer : ") + label + " (" + nbHoles + " trous)";
     document.getElementById("unloadCourse").style.display = c ? "block" : "none";
   }
 
@@ -1103,21 +1276,26 @@
     var b = e.target.closest("button");
     if (!b) return;
     pendingHcp = Math.max(0, Math.min(54, pendingHcp + parseInt(b.dataset.dir, 10)));
-    if (round.course && round.course.id === pendingCourse && round.course.tee === pendingTee) {
+    if (sameAsRound()) {
       round.course.hcp = pendingHcp;
       persistRound();
     }
     renderCoursePicker(); renderParcours(); renderResume();
   });
+  function startRound(cid, tee, hcp, loops) {
+    var rc = resolveCourse(cid, loops);
+    round = newRoundState(rc.holes.length);
+    round.course = { id: cid, tee: tee, hcp: hcp };
+    if (loops) round.course.loops = loops.slice();
+    rc.holes.forEach(function (ch, k) { round.holes[k] = emptyHole(ch.p); });
+  }
   document.getElementById("loadCourse").addEventListener("click", function () {
     var pc = COURSES[pendingCourse];
     if (!confirm("Démarrer une nouvelle partie à " + pc.short + " ? La partie en cours non enregistrée sera remplacée.")) return;
-    round = newRoundState();
-    round.course = { id: pendingCourse, tee: pendingTee, hcp: pendingHcp };
-    pc.holes.forEach(function (ch, k) { round.holes[k] = emptyHole(ch.p); });
+    startRound(pendingCourse, pendingTee, pendingHcp, pc.loops ? pendingLoops : null);
     persistRound();
     renderAll();
-    switchTab("routine");
+    switchTab("carte");
   });
   document.getElementById("unloadCourse").addEventListener("click", function () {
     if (!confirm("Continuer cette partie sans parcours ? Les pars restent, le stableford n'est plus calculé.")) return;
@@ -1143,7 +1321,7 @@
       fwHit: fwHit, fwCount: fwCount, girHit: girHit, girCount: girCount, udHit: udHit, udCount: udCount,
       fwPct: fwCount ? Math.round(fwHit / fwCount * 100) : null,
       girPct: girCount ? Math.round(girHit / girCount * 100) : null,
-      putts: putts, avgPutts: (putts / 18).toFixed(1),
+      putts: putts, avgPutts: (putts / r.holes.length).toFixed(1),
       udPct: udCount ? Math.round(udHit / udCount * 100) : null
     };
   }
@@ -1208,7 +1386,8 @@
       holes: round.holes.map(function (h, k) { return { hole: k + 1, score: h.score, par: h.par }; })
     };
     if (c) {
-      entry.course = c.name;
+      entry.course = c.fullName;
+      if (c.loopsSel) entry.loops = c.loopsSel;
       entry.courseId = round.course.id;
       entry.format = "stableford";
       entry.stablefordPoints = totalStableford();
@@ -1216,12 +1395,9 @@
     }
     history.push(entry);
     persistHistory();
-    var keep = round.course ? { id: round.course.id, tee: round.course.tee, hcp: round.course.hcp } : null;
-    round = newRoundState();
-    if (keep) {
-      round.course = keep;
-      COURSES[keep.id].holes.forEach(function (ch, k) { round.holes[k] = emptyHole(ch.p); });
-    }
+    var keep = round.course ? JSON.parse(JSON.stringify(round.course)) : null;
+    if (keep && COURSES[keep.id]) startRound(keep.id, keep.tee, keep.hcp, keep.loops);
+    else round = newRoundState();
     persistRound();
     renderAll();
     switchTab("stats");
@@ -1229,11 +1405,8 @@
   document.getElementById("newRound").addEventListener("click", function () {
     if (!confirm("Repartir sur une nouvelle partie sans enregistrer celle-ci ?")) return;
     var keep = round.course;
-    round = newRoundState();
-    if (keep) {
-      round.course = keep;
-      COURSES[keep.id].holes.forEach(function (ch, k) { round.holes[k] = emptyHole(ch.p); });
-    }
+    if (keep && COURSES[keep.id]) startRound(keep.id, keep.tee, keep.hcp, keep.loops);
+    else round = newRoundState(round.holes.length);
     persistRound();
     renderAll();
   });
@@ -1413,7 +1586,7 @@
         history = data.history;
         notes = data.notes || {};
         if (data.labels) labels = Object.assign({}, defaultLabels, data.labels);
-        if (data.round && data.round.holes && data.round.holes.length === 18) round = data.round;
+        if (data.round && data.round.holes && (data.round.holes.length === 18 || data.round.holes.length === 9)) round = data.round;
         persistHistory(); persistNotes(); persistLabels(); persistRound();
         saveJSON(LS_SEEDED, true);
         renderAll();
@@ -1520,7 +1693,7 @@
     renderAll();
   });
   document.getElementById("nextHole").addEventListener("click", function () {
-    if (round.holeIndex === 17) return;
+    if (round.holeIndex >= round.holes.length - 1) return;
     round.holeIndex++;
     round.checks = {};
     persistRound();
@@ -1643,7 +1816,7 @@
       document.getElementById("mapHelp").textContent = "Carte indisponible hors connexion au premier lancement. Les distances restent affichées.";
     }
     var cid = round.course.id, idx = round.holeIndex;
-    var g = holeGeo(cid, idx);
+    var g = holeGeo(cid, curKey(idx));
     var o = origin(g);
     var dC = o && g.c ? distM(o.pos, g.c) : null;
     var dF = o && g.f ? distM(o.pos, g.f) : null;
@@ -1731,9 +1904,11 @@
   function nearestPlaced() {
     var cid = round.course.id, idx = round.holeIndex;
     for (var d = 1; d < 18; d++) {
-      var a = holeGeo(cid, (idx - d + 18) % 18);
+      var N = round.holes.length;
+      if (d >= N) break;
+      var a = holeGeo(cid, curKey((idx - d + N) % N));
       if (a.c) return a.c;
-      var b = holeGeo(cid, (idx + d) % 18);
+      var b = holeGeo(cid, curKey((idx + d) % N));
       if (b.c) return b.c;
     }
     return null;
@@ -1753,9 +1928,9 @@
   }
 
   function setGeoPoint(k, p) {
-    var cid = round.course.id, idx = round.holeIndex;
+    var cid = round.course.id, hk = curKey();
     geoOver[cid] = geoOver[cid] || {};
-    var o = geoOver[cid][idx] = geoOver[cid][idx] || {};
+    var o = geoOver[cid][hk] = geoOver[cid][hk] || {};
     o[k] = p ? r6(p) : null;
     if (k === "f" || k === "b" || k === "c") o.est = 0;
     if (!COURSES[cid].center && p) { if (userCourses[cid]) { userCourses[cid].center = r6(p); persistCourses(); } }
@@ -1765,7 +1940,7 @@
 
   document.getElementById("mapRecenter").addEventListener("click", function () {
     if (!map || !round.course) return;
-    fitHole(holeGeo(round.course.id, round.holeIndex));
+    fitHole(holeGeo(round.course.id, curKey()));
   });
   document.getElementById("mapClearTarget").addEventListener("click", function () { target = null; renderGps(false); });
   document.getElementById("gpsGoPartie").addEventListener("click", function () { switchTab("resume"); });
@@ -1775,7 +1950,7 @@
     document.getElementById("editPanel").style.display = editMode ? "block" : "none";
     document.getElementById("mapTools").style.display = editMode ? "none" : "flex";
     if (!editMode) return;
-    var g = holeGeo(round.course.id, round.holeIndex);
+    var g = holeGeo(round.course.id, curKey());
     document.getElementById("editTitle").textContent = "Placer les points — trou " + (round.holeIndex + 1);
     renderChips("editPointChips", POINTS.map(function (p) { return { value: p.k, label: (g[p.k] ? "✓ " : "") + p.label }; }), editPoint,
       function (v) { editPoint = v; renderEditPanel(); });
@@ -1787,7 +1962,7 @@
     if (!round.course) return;
     editMode = true;
     target = null;
-    var g = holeGeo(round.course.id, round.holeIndex);
+    var g = holeGeo(round.course.id, curKey());
     editPoint = !g.tee ? "tee" : (!g.c ? "c" : "f");
     renderEditPanel();
     renderGps(false);
@@ -1859,6 +2034,12 @@
     switchTab("course");
   }
   function renderCeHoles() {
+    renderChips("ceCount", [{ value: 9, label: "9" }, { value: 18, label: "18" }], ce.holes.length, function (v) {
+      if (v === ce.holes.length) return;
+      if (v === 9) ce.holes = ce.holes.slice(0, 9);
+      else while (ce.holes.length < 18) ce.holes.push({ p: 4, i: null });
+      renderCeHoles();
+    });
     var box = document.getElementById("ceHoles");
     box.innerHTML = "";
     ce.holes.forEach(function (h, k) {
@@ -1874,7 +2055,7 @@
         chips.appendChild(b);
       });
       var inp = document.createElement("input");
-      inp.type = "number"; inp.inputMode = "numeric"; inp.min = 1; inp.max = 18;
+      inp.type = "number"; inp.inputMode = "numeric"; inp.min = 1; inp.max = ce.holes.length;
       inp.value = h.i || "";
       inp.addEventListener("input", function () { h.i = inp.value ? parseInt(inp.value, 10) : null; checkCe(); });
       row.appendChild(n); row.appendChild(chips); row.appendChild(inp);
@@ -1884,7 +2065,7 @@
   }
   function checkCe() {
     var idxs = ce.holes.map(function (h) { return h.i; }).filter(Boolean);
-    var missing = 18 - idxs.length;
+    var missing = ce.holes.length - idxs.length;
     var dup = idxs.filter(function (v, k) { return idxs.indexOf(v) !== k; });
     var msg = "";
     if (missing) msg = missing + " index manquant" + (missing > 1 ? "s" : "") + " : le stableford sera approximatif.";
@@ -1947,11 +2128,11 @@
   function courseExport(cid) {
     var c = COURSES[cid];
     var geo = {};
-    for (var k = 0; k < 18; k++) { var g = holeGeo(cid, k); if (Object.keys(g).length) geo[k] = g; }
+    allKeys(cid).forEach(function (k) { var g = holeGeo(cid, k); if (Object.keys(g).length) geo[k] = g; });
     return {
       app: "carnet-golf", type: "course", version: 1, id: cid,
       course: { name: c.name, short: c.short, center: c.center || null, tees: c.tees, hcpNote: c.hcpNote || "",
-        holes: c.holes.map(function (h) { return { p: h.p, i: h.i || null }; }) },
+        holes: c.holes ? c.holes.map(function (h) { return { p: h.p, i: h.i || null }; }) : null },
       geo: geo, notes: notes[cid] || {}
     };
   }
@@ -1989,7 +2170,7 @@
   });
   function importCourseData(data) {
     var c = data.course;
-    if (!c || !Array.isArray(c.holes) || c.holes.length !== 18) { alert("Parcours incomplet."); return; }
+    if (!c || (!BUILTIN[data.id] && (!Array.isArray(c.holes) || (c.holes.length !== 18 && c.holes.length !== 9)))) { alert("Parcours incomplet."); return; }
     var id = data.id && (BUILTIN[data.id] || userCourses[data.id]) ? data.id : (data.id && data.id.indexOf("u_") === 0 ? data.id : slug(c.name));
     if (BUILTIN[id]) {
       if (!confirm("Mettre à jour les points et notes de " + BUILTIN[id].short + " avec ceux reçus ?")) return;
@@ -2191,7 +2372,7 @@
         buildFromOsm([[outSel, 1, 9], [inSel, 1, 9]]);
       };
     } else if (nines.length === 1) {
-      if (confirm("Golf de 9 trous : le dupliquer pour faire un 18 trous (aller-retour) ?")) buildFromOsm([[nines[0], 1, 9], [nines[0], 1, 9]]);
+      buildFromOsm([[nines[0], 1, 9]]);
     } else {
       osmStatus.textContent = "Trous incomplets sur la carte (" + holes.length + " trouvés). Crée le parcours à la main.";
     }
@@ -2213,7 +2394,7 @@
     osmStatus.textContent = "";
     var name = p.gc.name + (segments.length === 2 && segments[0][0] && segments[0][0] !== segments[1][0] ? " (" + segments[0][0] + " + " + segments[1][0] + ")" : "");
     openCourseEditor({ id: null, name: name, hcp: pendingHcp, holes: hs, geo: geo, center: r6(p.gc.pos) });
-    document.getElementById("ceGeoNote").textContent = (18 - missing) + " trous récupérés sur la carte. Vérifie les pars (devinés d'après la longueur si absents) et saisis les index de ta carte de score.";
+    document.getElementById("ceGeoNote").textContent = (hs.length - missing) + " trous récupérés sur la carte. Vérifie les pars (devinés d'après la longueur si absents) et saisis les index de ta carte de score.";
   }
 
   renderAll();
