@@ -9,6 +9,7 @@
 <link rel="icon" href="icon-192.png" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="barbaroux-geo.js"></script>
 <style>
   :root {
     --paper: #f1efe3;
@@ -292,6 +293,15 @@
     width: 18px !important; height: 18px !important; margin: -9px 0 0 -9px !important;
     border-radius: 50%; background: #2f7cf6; border: 3px solid #fff; box-shadow: 0 0 0 2px rgba(47,124,246,0.35);
   }
+  .haz-list { margin: -2px 0 8px; display: grid; gap: 4px; }
+  .haz-row {
+    display: flex; justify-content: space-between; gap: 8px; align-items: baseline;
+    font-size: 13px; font-weight: 600; padding: 5px 10px; border-radius: 9px; background: var(--fairway-soft);
+  }
+  .haz-row .n { display: flex; align-items: center; gap: 6px; }
+  .haz-row .sw { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+  .haz-row .d { white-space: nowrap; font-weight: 800; }
+  .haz-row .d small { font-weight: 600; color: var(--ink-dim); }
   .edit-hint { font-size: 13px; font-weight: 600; margin: 8px 0 4px; }
   .row-btns { display: flex; gap: 8px; }
   .row-btns .ghost-btn, .row-btns .primary-btn { margin-top: 6px; }
@@ -360,6 +370,7 @@
           </div>
         </div>
         <div class="gps-status"><span id="gpsStatus"><span class="dot"></span>GPS en attente</span><span id="gpsOrigin"></span></div>
+        <div class="haz-list" id="hazList"></div>
         <div id="map"></div>
         <div class="map-tools" id="mapTools">
           <button class="ghost-btn" id="mapRecenter">Recentrer</button>
@@ -808,6 +819,18 @@
     }
   };
   BUILTIN.barbaroux.center = [43.40622, 6.17148];
+  // Coordonnées OSM de Barbaroux (fichier barbaroux-geo.js) : départ/green et obstacles.
+  // Pars, distances et notes restent ceux de la fiche ci-dessus.
+  try {
+    var GB = window.GEO_BARBAROUX;
+    if (Array.isArray(GB) && GB.length === BUILTIN.barbaroux.holes.length) {
+      GB.forEach(function (x, k) {
+        if (!x) return;
+        if (x.g) BUILTIN.barbaroux.holes[k].g = x.g;
+        if (Array.isArray(x.hz)) BUILTIN.barbaroux.holes[k].hz = x.hz;
+      });
+    }
+  } catch (e) {}
   BUILTIN.merignies.center = [50.51053, 3.13689];
   BUILTIN.vertparc.center = [50.57015, 2.83700];
   var LS_UCOURSES = "golf_courses_v1";
@@ -1826,6 +1849,8 @@
     document.getElementById("dFront").textContent = dF == null ? "—" : approx + fmtM(dF);
     document.getElementById("dBack").textContent = dB == null ? "—" : approx + fmtM(dB);
     document.getElementById("gpsOrigin").textContent = !o ? "" : (o.kind === "me" ? "depuis ta position" : "depuis le départ");
+    var hz = holeHazards(cid, curKey(idx));
+    renderHazards(hz, o, g);
     if (!g.c && !editMode) {
       document.getElementById("mapHelp").textContent = "Le green de ce trou n'est pas encore placé : touche « Placer les points ».";
     } else if (!editMode) {
@@ -1835,15 +1860,65 @@
     if (!map) return;
     drawLayers(g, o);
     var key = cid + ":" + idx;
-    if (refit || key !== lastFitKey) { fitHole(g); lastFitKey = key; }
-    setTimeout(function () { map.invalidateSize(); }, 50);
+    var didFit = refit || key !== lastFitKey;
+    map.invalidateSize();
+    if (didFit) { fitHole(g); lastFitKey = key; }
+    setTimeout(function () {
+      map.invalidateSize();
+      if (didFit && lastFitKey === key) fitHole(holeGeo(cid, curKey()));
+    }, 80);
   }
 
+  function holeHazards(cid, key) {
+    var h = rawHole(cid, key);
+    return h && Array.isArray(h.hz) ? h.hz : [];
+  }
+  // Obstacles encore devant le joueur, du plus proche au plus loin (4 max)
+  function renderHazards(hz, o, g) {
+    var box = document.getElementById("hazList");
+    box.innerHTML = "";
+    if (!hz.length || !o || !g.c) return;
+    var dir = toXY(o.pos, g.c), len = Math.hypot(dir[0], dir[1]);
+    if (!len) return;
+    var u = [dir[0] / len, dir[1] / len];
+    var rows = hz.filter(function (z) { return z.f && z.b; }).map(function (z) {
+      var vb = toXY(o.pos, z.b);
+      return { z: z, ahead: vb[0] * u[0] + vb[1] * u[1], df: distM(o.pos, z.f), db: distM(o.pos, z.b) };
+    }).filter(function (r) { return r.ahead > 0; })
+      .sort(function (a, b) { return a.df - b.df; }).slice(0, 4);
+    rows.forEach(function (r) {
+      var row = document.createElement("div");
+      row.className = "haz-row";
+      var n = document.createElement("span");
+      n.className = "n";
+      var sw = document.createElement("span");
+      sw.className = "sw";
+      sw.style.background = r.z.t === "w" ? "#3d8bd9" : "#d8a94f";
+      n.appendChild(sw);
+      n.appendChild(document.createTextNode((r.z.t === "w" ? "Eau" : "Bunker") + (r.z.s ? " " + r.z.s : "")));
+      var d = document.createElement("span");
+      d.className = "d mono";
+      d.innerHTML = Math.round(r.df) + " <small>/</small> " + Math.round(r.db) + " <small>m</small>";
+      row.appendChild(n); row.appendChild(d);
+      box.appendChild(row);
+    });
+    if (rows.length) {
+      var lg = document.createElement("div");
+      lg.className = "field-sub";
+      lg.textContent = "Obstacles devant toi : distance pour l'atteindre / pour le passer.";
+      box.appendChild(lg);
+    }
+  }
   function labelIcon(p) {
     return L.divIcon({ className: "pt-label", html: p.short, iconSize: [26, 26] })
   }
   function drawLayers(g, o) {
     layers.clearLayers();
+    holeHazards(round.course.id, curKey()).forEach(function (z) {
+      if (!z.p || z.p.length < 3) return;
+      var col = z.t === "w" ? "#3d8bd9" : "#e3c27a";
+      L.polygon(z.p, { color: col, weight: 1.5, opacity: 0.95, fillColor: col, fillOpacity: 0.18, interactive: false }).addTo(layers);
+    });
     var green = g.c;
     if (o && green) {
       var via = target ? [o.pos, target, green] : [o.pos, green];

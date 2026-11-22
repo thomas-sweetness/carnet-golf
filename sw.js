@@ -1,10 +1,10 @@
 // Hors ligne : l'appli est servie depuis le cache tout de suite et mise à jour en arrière-plan.
 // Les tuiles satellite déjà vues sont gardées pour le parcours (cache séparé, plafonné).
-var CACHE = "carnet-golf-v4";
+var CACHE = "carnet-golf-v5";
 var TILES = "carnet-golf-tiles";
 var MAX_TILES = 1500;
 var FILES = [
-  "./", "index.html", "manifest.json", "icon-192.png", "icon-512.png",
+  "./", "index.html", "manifest.json", "icon-192.png", "icon-512.png", "barbaroux-geo.js",
   "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css",
   "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
 ];
