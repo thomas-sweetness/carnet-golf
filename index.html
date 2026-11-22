@@ -344,7 +344,6 @@
     <nav class="tabs">
       <button class="tab-btn active" data-tab="carte">Carte</button>
       <button class="tab-btn" data-tab="parcours">Trou</button>
-      <button class="tab-btn" data-tab="routine">Routine</button>
       <button class="tab-btn" data-tab="resume">Partie</button>
       <button class="tab-btn" data-tab="stats">Stats</button>
     </nav>
@@ -395,27 +394,6 @@
           <button class="primary-btn" id="editDone" style="margin-top:10px;">Terminé</button>
         </div>
       </div>
-    </section>
-
-    <!-- ROUTINE -->
-    <section class="view" id="view-routine">
-      <div class="progress-caption">
-        <span>Check-list avant le coup</span>
-        <span id="progressText">0 / 4</span>
-      </div>
-      <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
-
-      <div class="card">
-        <h2>Routine pré-shot — 3 étapes</h2>
-        <div id="preshotList"></div>
-      </div>
-
-      <div class="card">
-        <h2>Jeu court</h2>
-        <div id="shortgameList"></div>
-      </div>
-
-      <button class="primary-btn" id="resetChecks">Prochain coup — réinitialiser</button>
     </section>
 
     <!-- TROU -->
@@ -1020,7 +998,6 @@
   var tabButtons = document.querySelectorAll(".tab-btn");
   var views = {
     carte: document.getElementById("view-carte"),
-    routine: document.getElementById("view-routine"),
     parcours: document.getElementById("view-parcours"),
     resume: document.getElementById("view-resume"),
     stats: document.getElementById("view-stats"),
@@ -1074,55 +1051,6 @@
     document.getElementById("prevHole").disabled = round.holeIndex === 0;
     document.getElementById("nextHole").disabled = round.holeIndex === round.holes.length - 1;
   }
-
-  // ---------- Routine ----------
-  function buildRow(id, opts) {
-    opts = opts || {};
-    var row = document.createElement("div");
-    row.className = "check-row";
-    if (opts.stepNum) {
-      var num = document.createElement("span");
-      num.className = "step-num mono";
-      num.textContent = opts.stepNum + ".";
-      row.appendChild(num);
-    }
-    var cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.checked = !!round.checks[id];
-    cb.addEventListener("change", function () {
-      round.checks[id] = cb.checked;
-      row.classList.toggle("checked", cb.checked);
-      persistRound();
-      renderProgress();
-    });
-    var txt = document.createElement("input");
-    txt.type = "text";
-    txt.value = labels[id];
-    txt.addEventListener("input", function () { labels[id] = txt.value; persistLabels(); });
-    row.appendChild(cb);
-    row.appendChild(txt);
-    if (cb.checked) row.classList.add("checked");
-    return row;
-  }
-  function renderChecklists() {
-    var preshot = document.getElementById("preshotList");
-    preshot.innerHTML = "";
-    preshotIds.forEach(function (id, i) { preshot.appendChild(buildRow(id, { stepNum: i + 1 })); });
-    var sg = document.getElementById("shortgameList");
-    sg.innerHTML = "";
-    shortgameIds.forEach(function (id) { sg.appendChild(buildRow(id)); });
-  }
-  function renderProgress() {
-    var n = allIds.filter(function (id) { return round.checks[id]; }).length;
-    document.getElementById("progressText").textContent = n + " / " + allIds.length;
-    document.getElementById("progressFill").style.width = (n / allIds.length * 100) + "%";
-  }
-  document.getElementById("resetChecks").addEventListener("click", function () {
-    round.checks = {};
-    persistRound();
-    renderChecklists();
-    renderProgress();
-  });
 
   // ---------- Trou ----------
   function currentHole() { return round.holes[round.holeIndex]; }
@@ -1725,8 +1653,6 @@
 
   function renderAll() {
     renderHeader();
-    renderChecklists();
-    renderProgress();
     renderParcours();
     renderResume();
     if (views.stats.classList.contains("active")) renderStats();
