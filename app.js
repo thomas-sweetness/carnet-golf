@@ -51,6 +51,9 @@
     share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4"/><path d="M15.4 6.5l-6.8 4"/>',
     pin: '<path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/>',
     check: '<path d="M20 6L9 17l-5-5"/>',
+    expand: '<path d="M4 9V4h5"/><path d="M20 9V4h-5"/><path d="M4 15v5h5"/><path d="M20 15v5h-5"/>',
+    shrink: '<path d="M9 4v5H4"/><path d="M15 4v5h5"/><path d="M9 20v-5H4"/><path d="M15 20v-5h5"/>',
+    compass: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
     edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
     trash: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/>',
     locate: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/><circle cx="12" cy="12" r="7"/>',
@@ -1094,7 +1097,7 @@
   // =====================================================================
   // Partie en cours
   // =====================================================================
-  var map = null, layers = null, target = null, editMode = false, editPoint = "tee", lastFitKey = "", wakeLock = null;
+  var map = null, layers = null, target = null, editMode = false, editPoint = "tee", lastFitKey = "", wakeLock = null, isFull = false;
   var POINTS = [
     { k: "tee", label: "Départ", color: "#f4f1e4", text: "#1c2318", short: "D" },
     { k: "f", label: "Avant green", color: "#35b872", text: "#fff", short: "A" },
@@ -1114,9 +1117,9 @@
     return Math.max(0, h.par + strokesFor(c.holes[idx].i, round.course.hcp, round.holes.length) + 2 - h.score);
   }
   function totals(r) {
-    var o = { score: 0, par: 0, fwHit: 0, fwCount: 0, girHit: 0, girCount: 0, putts: 0, udHit: 0, udCount: 0 };
+    var o = { score: 0, par: 0, fwHit: 0, fwCount: 0, girHit: 0, girCount: 0, putts: 0, udHit: 0, udCount: 0, pen: 0 };
     r.holes.forEach(function (h) {
-      o.score += h.score; o.par += h.par; o.putts += h.putts;
+      o.score += h.score; o.par += h.par; o.putts += h.putts; o.pen += h.pen || 0;
       if (h.fairway === "oui" || h.fairway === "non") { o.fwCount++; if (h.fairway === "oui") o.fwHit++; }
       if (h.gir === "oui" || h.gir === "non") { o.girCount++; if (h.gir === "oui") o.girHit++; }
       if (h.upDown === "oui" || h.upDown === "non") { o.udCount++; if (h.upDown === "oui") o.udHit++; }
@@ -1134,38 +1137,58 @@
   VIEWS.play = function (prm) {
     if (!round || !roundCourse()) { go("newround", {}, true); return; }
     var tab = prm.tab || "map";
-    var c = roundCourse();
     page('<div class="play-head"><button class="icon-btn" id="pHome" aria-label="Accueil">' + ic("back") + '</button><div class="hole-badge num" id="pNum"></div>' +
       '<div class="play-info"><div class="a" id="pA"></div><div class="b" id="pB"></div></div></div>' +
-      '<div class="seg" id="pTabs" style="margin-bottom:12px"><button data-t="map">' + ic("map") + ' Carte</button><button data-t="score">' + ic("edit") + ' Score</button><button data-t="card">' + ic("list") + " Carte de score</button></div>" +
+      '<div class="play-tabs" id="pTabs"><button data-t="map">' + ic("map") + '<span>GPS</span></button><button data-t="score">' + ic("edit") + '<span>Score du trou</span></button><button data-t="card">' + ic("list") + "<span>Carte de score</span></button></div>" +
       '<div id="pBody"></div>' +
       '<div class="play-bar"><div class="inner"><button id="pPrev">' + ic("back") + 'Trou</button><button class="main" id="pNext">Trou suivant' + ic("next") + "</button></div></div>", "has-bar");
     $$("#pTabs button").forEach(function (b) {
       b.classList.toggle("on", b.getAttribute("data-t") === tab);
-      b.style.display = "flex"; b.style.alignItems = "center"; b.style.justifyContent = "center"; b.style.gap = "6px";
       b.addEventListener("click", function () { go("play", { tab: b.getAttribute("data-t") }, true); });
     });
     on("pHome", "click", function () { go("home", {}, false); });
     on("pPrev", "click", function () { moveHole(-1); });
-    on("pNext", "click", function () {
-      if (round.holeIndex >= round.holes.length - 1) { finishSheet(); return; }
-      moveHole(1);
-    });
+    on("pNext", "click", nextHole);
     renderPlayHead();
+    // GPS actif sur tout l'écran de jeu : distance marchée, arrivée sur le green
+    startWatch();
+    gpsListeners = [function () {
+      trackWalk();
+      checkGreen();
+      if ((current.params.tab || "map") === "map") renderMapContent(false);
+    }];
+    if ("wakeLock" in navigator) navigator.wakeLock.request("screen").then(function (w) { wakeLock = w; }).catch(function () {});
     if (tab === "map") renderMapTab();
     else if (tab === "score") renderScoreTab();
     else renderCardTab();
     leaveHook = function () {
       stopWatch();
+      stopCompass();
+      setFull(false, true);
       gpsListeners = [];
       if (wakeLock) { try { wakeLock.release(); } catch (e) {} wakeLock = null; }
       if (map) { map.remove(); map = null; }
     };
   };
+  function nextHole() {
+    if (!curHole().done) { openValidation(); return; }
+    afterHole();
+  }
+  function afterHole() {
+    var idx = round.holeIndex, n = round.holes.length;
+    if (idx >= n - 1) { finishSheet(); return; }
+    if (n === 18 && idx === 8 && !round.midShown) {
+      round.midShown = true;
+      moveHole(1);
+      midRecap();
+      return;
+    }
+    moveHole(1);
+  }
   function moveHole(d) {
     var n = round.holeIndex + d;
     if (n < 0 || n >= round.holes.length) return;
-    closeOpenShot(false);
+    closeOpenShot("keep");
     round.holeIndex = n;
     target = null;
     persist("round");
@@ -1187,7 +1210,136 @@
     var extra = round.format === "stableford" ? totalPoints() + " pts" : signed(pt.s - pt.p);
     $("#pB").textContent = c.short + (hd.loopName ? " · " + hd.loopName : "") + " · " + extra;
     $("#pPrev").disabled = round.holeIndex === 0;
-    $("#pNext").innerHTML = round.holeIndex >= round.holes.length - 1 ? ic("check") + "Terminer" : "Trou suivant" + ic("next");
+    $("#pNext").innerHTML = !h.done ? ic("edit") + "Valider le trou" : round.holeIndex >= round.holes.length - 1 ? ic("check") + "Terminer" : "Trou suivant" + ic("next");
+  }
+
+  // ---------- Distance marchée, chrono, arrivée sur le green ----------
+  function trackWalk() {
+    if (!round || !me || !round.t0 || me.acc > 25) return;
+    var p = me.pos, lp = round.wk;
+    if (!lp) { round.wk = { p: r6(p), t: me.t }; persist("round"); return; }
+    var d = distM(lp.p, p);
+    if (d < 10) return;
+    var dt = Math.max(1, (me.t - lp.t) / 1000);
+    if (d / dt <= 3.5 && d < 1500) round.walk = (round.walk || 0) + d;
+    round.wk = { p: r6(p), t: me.t };
+    persist("round");
+  }
+  function onGreen(g) {
+    if (!me || !g.c || me.acc > 25) return false;
+    var r = g.f && g.b ? Math.max(12, distM(g.f, g.b) / 2 + 5) : 16;
+    if (g.est) r += 6;
+    return distM(me.pos, g.c) <= r;
+  }
+  var greenSeen = {};
+  function checkGreen() {
+    if (!round) return;
+    var idx = round.holeIndex, h = curHole();
+    var on_ = onGreen(holeGeo(round.course.id, curKey()));
+    if (!on_ || h.done || greenSeen[round.date + ":" + idx]) return;
+    greenSeen[round.date + ":" + idx] = true;
+    var s = closeOpenShot(true);
+    if (navigator.vibrate) navigator.vibrate([120, 80, 120]);
+    toast(s && s.d ? "Sur le green · " + (clubById(s.club) || {}).name + " : " + s.d + " m" : "Sur le green : touche le crayon pour valider le trou");
+  }
+  function holeShots(idx) { return (round.shots || []).filter(function (s) { return s.hole === idx; }); }
+  function fmtDur(ms) {
+    var m = Math.max(0, Math.round(ms / 60000)), h = Math.floor(m / 60);
+    return h ? h + " h " + ("0" + (m % 60)).slice(-2) : m + " min";
+  }
+
+  // ---------- Validation du trou (façon montre) ----------
+  function openValidation() {
+    var idx = round.holeIndex, h = curHole();
+    var shots = holeShots(idx).length;
+    var v = {
+      score: h.done ? h.score : (shots ? shots + 2 : h.score),
+      putts: h.done ? h.putts : null,
+      pen: h.done ? (h.pen || 0) : 0,
+      fw: h.fwDir || (h.fairway === "oui" ? "hit" : null)
+    };
+    var steps = ["score", "putts", "pen"];
+    if (h.par > 3) steps.push("fw");
+    var k = 0;
+    function defPutts() {
+      if (v.putts != null) return;
+      v.putts = shots ? Math.max(0, v.score - shots) : Math.min(2, Math.max(0, v.score - 1));
+      v.putts = Math.min(v.putts, v.score);
+    }
+    function scoreName(d) { return d <= -3 ? "Albatros" : d === -2 ? "Eagle" : d === -1 ? "Birdie" : d === 0 ? "Par" : d === 1 ? "Bogey" : d === 2 ? "Double bogey" : "+" + d; }
+    function render() {
+      var st = steps[k], body, lbl = "", q;
+      if (st === "score") { q = "Combien de coups sur ce trou ?"; lbl = scoreName(v.score - h.par); body = v.score; }
+      if (st === "putts") { defPutts(); q = "Combien de putts ?"; lbl = (v.score - v.putts) + " coup" + (v.score - v.putts > 1 ? "s" : "") + " pour toucher le green"; body = v.putts; }
+      if (st === "fw") q = "Fairway au départ ?";
+      if (st === "pen") { q = "Des pénalités ?"; lbl = v.pen ? "Comptées dans ton score de " + v.score : "Aucune pénalité"; body = v.pen; }
+      var dots = '<div class="wz-dots">' + steps.map(function (s, i) { return '<span class="' + (i <= k ? "on" : "") + '"></span>'; }).join("") + "</div>";
+      var head = "<h3>Trou " + (idx + 1) + " · par " + h.par + "</h3>" + dots + '<p class="wz-q">' + q + "</p>";
+      var html;
+      if (st === "fw") {
+        html = head + '<div class="fw-pick">' +
+          '<button data-v="left" class="' + (v.fw === "left" ? "on" : "") + '"><span class="ar">←</span>Gauche</button>' +
+          '<button data-v="hit" class="hit ' + (v.fw === "hit" ? "on" : "") + '"><span class="ar">' + ic("check") + "</span>Touché</button>" +
+          '<button data-v="right" class="' + (v.fw === "right" ? "on" : "") + '"><span class="ar">→</span>Droite</button></div>' +
+          '<div class="row" style="margin-top:14px"><button class="btn ghost" id="wzBack">Retour</button><button class="btn ghost" id="wzSkip">Je ne sais plus</button></div>';
+      } else {
+        var last = k === steps.length - 1;
+        html = head + '<div class="score-big"><button id="wzM">−</button><span class="v num">' + body + '</span><button id="wzP">+</button></div>' +
+          '<div class="score-lbl">' + esc(lbl) + "</div>" +
+          (st === "score" && shots ? '<p class="muted small wz-hint">' + shots + " coup" + (shots > 1 ? "s" : "") + " enregistré" + (shots > 1 ? "s" : "") + " + 2 putts</p>" : "") +
+          '<div class="row" style="margin-top:14px">' + (k ? '<button class="btn ghost" id="wzBack">Retour</button>' : "") +
+          '<button class="btn" id="wzNext">' + (last ? ic("check") + "Valider" : "Suivant" + ic("next")) + "</button></div>";
+      }
+      openSheet(html, function () {
+        on("wzM", "click", function () { bump(-1); });
+        on("wzP", "click", function () { bump(1); });
+        on("wzNext", "click", function () { if (k < steps.length - 1) { k++; render(); } else finish(); });
+        on("wzBack", "click", function () { k--; render(); });
+        on("wzSkip", "click", function () { v.fw = null; finish(); });
+        $$(".fw-pick button").forEach(function (b) { b.addEventListener("click", function () { v.fw = b.getAttribute("data-v"); finish(); }); });
+      });
+    }
+    function bump(d) {
+      var st = steps[k];
+      if (st === "score") { v.score = Math.max(1, Math.min(15, v.score + d)); v.putts = null; v.pen = Math.min(v.pen, v.score - 1); }
+      if (st === "putts") v.putts = Math.max(0, Math.min(v.score, v.putts + d));
+      if (st === "pen") v.pen = Math.max(0, Math.min(Math.max(0, v.score - v.putts - 1), v.pen + d));
+      render();
+    }
+    function finish() {
+      defPutts();
+      h.score = v.score; h.putts = v.putts; h.pen = v.pen;
+      if (h.par > 3) { h.fwDir = v.fw; h.fairway = v.fw === "hit" ? "oui" : v.fw ? "non" : null; }
+      h.gir = v.score - v.putts <= h.par - 2 ? "oui" : "non";
+      h.upDown = h.gir === "non" ? (v.score <= h.par ? "oui" : "non") : null;
+      h.done = true;
+      if (!round.t0) round.t0 = Date.now();
+      persist("round");
+      closeSheet();
+      renderPlayHead();
+      afterHole();
+    }
+    render();
+  }
+  function midRecap() {
+    var hs = round.holes.slice(0, 9), t = totals({ holes: hs });
+    var pts = 0; for (var k = 0; k < 9; k++) pts += holePoints(k);
+    var time = round.t0 ? fmtDur(Date.now() - round.t0) : "—";
+    var km = round.walk ? (round.walk / 1000).toFixed(1).replace(".", ",") : "—";
+    openSheet("<h3>Mi-parcours</h3><p>Les 9 premiers trous, pour te situer dans ton plan de jeu.</p>" +
+      '<div class="stat-grid">' +
+      stat(t.score, "Score", "(" + signed(t.score - t.par) + ")") +
+      (round.format === "stableford" ? stat(pts, "Points stableford") : stat(t.putts, "Putts")) +
+      stat(t.girHit + "/" + hs.length, "Greens en régul.") +
+      stat(t.fwCount ? t.fwHit + "/" + t.fwCount : "—", "Fairways touchés") +
+      (round.format === "stableford" ? stat(t.putts, "Putts") : stat(r1(t.putts / 9).toString().replace(".", ","), "Putts par trou")) +
+      stat(t.pen, "Pénalités") +
+      stat(time, "Temps de jeu") +
+      stat(km, "Distance", round.walk ? "km" : "") +
+      "</div>" +
+      '<button class="btn" id="mrGo" style="margin-top:14px">' + ic("flag") + "Reprendre le parcours</button>", function () {
+      on("mrGo", "click", closeSheet);
+    });
   }
 
   // ---------- Onglet carte ----------
@@ -1198,27 +1350,41 @@
       '<div class="dist-side"><div><span class="l">Fond</span><span class="v num" id="dB">—</span></div><div><span class="l">Avant</span><span class="v num" id="dF">—</span></div></div></div>' +
       '<div class="status-line"><span id="gSt"><span class="dot"></span>GPS en attente</span><span id="gOr"></span></div>' +
       '<div id="caddie"></div><div class="haz" id="haz"></div>' +
-      '<div id="map"></div>' +
+      '<div class="map-wrap" id="mapWrap"><div id="map"></div>' +
+      '<div class="fs-top" id="fsTop"></div>' +
+      '<div class="map-tools"><button class="map-tool" id="mFull" aria-label="Plein écran">' + ic("expand") + '</button><button class="map-tool" id="mCompass" aria-label="Boussole">' + ic("compass") + "</button></div>" +
+      '<button class="fs-exit" id="fsExit">' + ic("shrink") + "Quitter</button>" +
+      '<div class="fs-bottom" id="fsBottom"></div></div>' +
       '<div id="shotZone"></div>' +
       '<div id="editZone"></div>';
-    startWatch();
-    gpsListeners = [function () { renderMapContent(false); }];
-    if ("wakeLock" in navigator) navigator.wakeLock.request("screen").then(function (w) { wakeLock = w; }).catch(function () {});
     if (typeof L !== "undefined") {
-      map = L.map("map", { zoomControl: false, attributionControl: true, maxZoom: 20 });
+      var canRotate = !!L.Map.prototype.setBearing;
+      map = L.map("map", { zoomControl: false, attributionControl: true, maxZoom: 20, doubleClickZoom: false,
+        rotate: canRotate, bearing: 0, touchRotate: false, shiftKeyRotate: false, rotateControl: false, compassBearing: false });
       L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
         maxZoom: 20, maxNativeZoom: 19, attribution: "© Esri · © OpenStreetMap"
       }).addTo(map);
       map.attributionControl.setPrefix(false);
       layers = L.layerGroup().addTo(map);
       map.on("click", onMapClick);
+      map.on("dblclick", function () { if (editMode) return; clearTimeout(tapTimer); tapTimer = null; setFull(!isFull); });
       var cc = roundCourse();
       map.setView(cc.center || [46.6, 2.4], cc.center ? 15 : 6);
     } else {
       $("#map").innerHTML = '<div class="empty" style="color:#fff">Carte indisponible sans connexion au premier lancement. Les distances restent affichées.</div>';
     }
+    on("mFull", "click", function () { setFull(true); });
+    on("fsExit", "click", function () { setFull(false); });
+    on("mCompass", "click", toggleCompass);
     lastFitKey = "";
     renderMapContent(true);
+  }
+  function setFull(v, silent) {
+    isFull = v;
+    document.body.classList.toggle("map-fs", v);
+    if (silent || !map) return;
+    renderMapContent(false);
+    setTimeout(function () { if (map) { map.invalidateSize(); fitHole(holeGeo(round.course.id, curKey())); } }, 60);
   }
   function origin(g) {
     var ref = g.c || g.tee;
@@ -1226,29 +1392,46 @@
     if (g.tee) return { pos: g.tee, kind: "tee" };
     return null;
   }
+  // point de départ de la mesure vers la cible : ta position dès que le GPS te situe sur le parcours
+  function targetFrom(g) {
+    var ref = g.c || g.tee;
+    if (me && (!ref || distM(me.pos, ref) < 3000)) return { pos: me.pos, kind: "me" };
+    return origin(g);
+  }
   function renderMapContent(refit) {
     if (!$("#dC")) return;
     var c = roundCourse(), cid = round.course.id, key = curKey();
     var g = holeGeo(cid, key), o = origin(g);
     var dC = o && g.c ? distM(o.pos, g.c) : null, dF = o && g.f ? distM(o.pos, g.f) : null, dB = o && g.b ? distM(o.pos, g.b) : null;
     var ap = g.est ? "≈" : "";
-    $("#dC").textContent = dC == null ? "—" : Math.round(dC);
-    $("#dF").textContent = dF == null ? "—" : ap + Math.round(dF);
-    $("#dB").textContent = dB == null ? "—" : ap + Math.round(dB);
+    var tC = dC == null ? "—" : Math.round(dC), tF = dF == null ? "—" : ap + Math.round(dF), tB = dB == null ? "—" : ap + Math.round(dB);
+    $("#dC").textContent = tC;
+    $("#dF").textContent = tF;
+    $("#dB").textContent = tB;
     var st = $("#gSt");
     if (gpsError === "refus") st.innerHTML = '<span class="dot warn"></span>Localisation refusée';
     else if (!me) st.innerHTML = '<span class="dot warn"></span>Recherche du GPS…';
     else st.innerHTML = '<span class="dot ' + (me.acc <= 15 ? "ok" : "warn") + '"></span>GPS ± ' + Math.round(me.acc) + " m";
     $("#gOr").textContent = !o ? "" : o.kind === "me" ? "depuis ta position" : "depuis le départ";
     // Caddie
-    var sug = suggestClub(target && o ? distM(o.pos, target) : dC);
+    var tf = targetFrom(g);
+    var sug = suggestClub(target && tf ? distM(tf.pos, target) : dC);
     $("#caddie").innerHTML = sug && !editMode ? '<div class="caddie"><span class="ic">' + ic("club") + "</span><span>Club conseillé : <b>" + esc(sug.c.name) + "</b> <span class=\"muted\">(" + sug.d + " m" +
       (target ? ", jusqu'à la cible" : "") + ")</span></span></div>" : "";
     renderHazards(holeHazards(cid, key), o, g);
     var em = $("#mEmpty");
     em.innerHTML = !g.c && !editMode ? '<div class="caddie" style="background:var(--primary-soft)"><span class="ic" style="color:var(--primary)">' + ic("pin") +
       "</span><span>Le green de ce trou n'est pas encore placé. Touche <b>Placer les points</b> sous la carte.</span></div>" : "";
-    renderShotZone();
+    // Plein écran : distances en haut, actions en bas
+    var green = onGreen(g) && !curHole().done;
+    $("#fsTop").innerHTML = '<div class="fs-hole"><b class="num">' + (round.holeIndex + 1) + "</b><span>Par " + curHole().par + "</span></div>" +
+      '<div class="fs-d"><div class="c num">' + tC + "<small>m</small></div><div class=\"fb\"><span>F <b class=\"num\">" + tB + "</b></span><span>A <b class=\"num\">" + tF + "</b></span></div></div>";
+    $("#fsBottom").innerHTML = editMode ? "" : (green ? '<button class="btn gold" id="fsVal">' + ic("edit") + "Valider le trou</button>" :
+      '<button class="btn" id="fsShot">' + ic("swing") + "Je tape d'ici</button>");
+    on("fsShot", "click", shotHere);
+    on("fsVal", "click", openValidation);
+    $("#mCompass").classList.toggle("on", compassOn);
+    renderShotZone(green);
     renderEditZone();
     if (!map) return;
     drawLayers(g, o, cid, key);
@@ -1258,6 +1441,13 @@
     if (didFit) { fitHole(g); lastFitKey = fk; }
     setTimeout(function () { if (map) { map.invalidateSize(); if (didFit && lastFitKey === fk) fitHole(holeGeo(cid, curKey())); } }, 90);
   }
+  var HZ_IC = {
+    s: '<svg class="hz-ic" viewBox="0 0 30 20" aria-hidden="true"><path d="M2 16C3.6 9.4 8.6 5 15 5s11.4 4.4 13 11c-3.4 2.7-22.6 2.7-26 0z" fill="#e6c77f" stroke="#b48a33" stroke-width="1.3"/>' +
+      '<circle cx="9.5" cy="12.5" r="1.1" fill="#b48a33"/><circle cx="15" cy="9.6" r="1.1" fill="#b48a33"/><circle cx="20" cy="13" r="1.1" fill="#b48a33"/><circle cx="14" cy="14.6" r="1" fill="#b48a33"/></svg>',
+    w: '<svg class="hz-ic" viewBox="0 0 30 20" aria-hidden="true"><path d="M3 10.5C3 6 8.4 3 15 3s12 3 12 7.5S21.6 18 15 18 3 15 3 10.5z" fill="#3d8bd9"/>' +
+      '<path d="M8 9.6c1.7-1.3 3.4-1.3 5.1 0s3.4 1.3 5.1 0 3.4-1.3 4.6 0" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>' +
+      '<path d="M10 13.6c1.5-1.1 3-1.1 4.5 0s3 1.1 4.5 0" fill="none" stroke="#cfe4f7" stroke-width="1.4" stroke-linecap="round"/></svg>'
+  };
   function renderHazards(hz, o, g) {
     var box = $("#haz");
     box.innerHTML = "";
@@ -1270,7 +1460,7 @@
       return { z: z, ahead: vb[0] * u[0] + vb[1] * u[1], df: distM(o.pos, z.f), db: distM(o.pos, z.b) };
     }).filter(function (r) { return r.ahead > 0; }).sort(function (a, b) { return a.df - b.df; }).slice(0, 4);
     box.innerHTML = rows.map(function (r) {
-      return '<div class="haz-row"><span class="n"><span class="sw" style="background:' + (r.z.t === "w" ? "#3d8bd9" : "#d8a94f") + '"></span>' +
+      return '<div class="haz-row"><span class="n">' + (r.z.t === "w" ? HZ_IC.w : HZ_IC.s) +
         (r.z.t === "w" ? "Eau" : "Bunker") + (r.z.s ? " " + esc(r.z.s) : "") + '</span><span class="d num">' + Math.round(r.df) + " <small>/</small> " + Math.round(r.db) + " <small>m</small></span></div>";
     }).join("") + (rows.length ? '<div class="muted small" style="margin:0 4px">Obstacles devant toi : pour l\'atteindre / pour le passer</div>' : "");
   }
@@ -1282,17 +1472,18 @@
       L.polygon(z.p, { color: col, weight: 1.5, opacity: 0.95, fillColor: col, fillOpacity: 0.18, interactive: false }).addTo(layers);
     });
     // coups joués sur ce trou
-    var shots = (round.shots || []).filter(function (s) { return s.hole === round.holeIndex; });
-    shots.forEach(function (s) {
+    holeShots(round.holeIndex).forEach(function (s) {
       if (s.end) L.polyline([s.pos, s.end], { color: "#f2b134", weight: 3, opacity: 0.9, interactive: false }).addTo(layers);
       L.circleMarker(s.pos, { radius: 5, color: "#fff", weight: 2, fillColor: "#f2b134", fillOpacity: 1, interactive: false }).addTo(layers);
     });
-    if (o && g.c && !editMode) {
-      L.polyline(target ? [o.pos, target, g.c] : [o.pos, g.c], { color: "#fff", weight: 2.5, opacity: 0.9, dashArray: "6 6", interactive: false }).addTo(layers);
+    var tf = targetFrom(g);
+    if (!editMode && g.c && (o || (target && tf))) {
+      var line = target && tf ? [tf.pos, target, g.c] : [o.pos, g.c];
+      L.polyline(line, { color: "#fff", weight: 2.5, opacity: 0.9, dashArray: "6 6", interactive: false }).addTo(layers);
     }
-    if (target && o && !editMode) {
-      var html = Math.round(distM(o.pos, target)) + " m";
-      if (g.c) html += "<br><small>reste " + Math.round(distM(target, g.c)) + " m</small>";
+    if (target && tf && !editMode) {
+      var html = Math.round(distM(tf.pos, target)) + " m <small>" + (tf.kind === "me" ? "depuis toi" : "depuis le départ") + "</small>";
+      if (g.c) html += "<br><small>reste " + Math.round(distM(target, g.c)) + " m au centre</small>";
       L.circleMarker(target, { radius: 7, color: "#fff", weight: 3, fillColor: "#f2b134", fillOpacity: 1, interactive: false }).addTo(layers)
         .bindTooltip(html, { permanent: true, direction: "top", offset: [0, -8], className: "dist-tip" });
     }
@@ -1313,8 +1504,29 @@
       L.marker(me.pos, { icon: L.divIcon({ className: "me-dot", iconSize: [18, 18] }), interactive: false }).addTo(layers);
     }
   }
+  // cap (en degrés depuis le nord, sens horaire) pour aller de a vers b
+  function headingTo(a, b) { var v = toXY(a, b); return (Math.atan2(v[0], v[1]) * 180 / Math.PI + 360) % 360; }
   function fitHole(g) {
     if (!map) return;
+    var from = me && g.c && distM(me.pos, g.c) < 1000 && !onGreen(g) ? me.pos : g.tee;
+    var to = g.b || g.c;
+    if (from && to && g.c && map.setBearing) {
+      // trou vers le haut : départ (ou ta position) en bas, green en haut
+      if (!compassOn) map.setBearing(-headingTo(from, g.c));
+      var L_ = Math.max(60, distM(from, to));
+      var sz = map.getSize(), h = Math.max(150, sz.y - (isFull ? 230 : 50));
+      var mid = [(from[0] + to[0]) / 2, (from[1] + to[1]) / 2];
+      var z = Math.log(156543.03 * Math.cos(mid[0] * Math.PI / 180) * h / (L_ * 1.12)) / Math.LN2;
+      z = Math.max(14, Math.min(19, Math.floor(z * 4) / 4));
+      if (isFull) {
+        // laisse la place au bandeau des distances en haut
+        var shift = 90 * 156543.03 * Math.cos(mid[0] * Math.PI / 180) / Math.pow(2, z);
+        var u = toXY(from, to), n = Math.hypot(u[0], u[1]) || 1;
+        mid = fromXY(mid, [u[0] / n * shift, u[1] / n * shift]);
+      }
+      map.setView(mid, z, { animate: false });
+      return;
+    }
     var pts = [];
     if (g.tee) pts.push(g.tee);
     if (g.c) pts.push(g.c);
@@ -1332,6 +1544,53 @@
       if (center) map.setView(center, 16);
     }
   }
+  // ---------- Boussole : la carte suit le téléphone ----------
+  var compassOn = false, headS = null, lastBearing = null, lastTurn = 0, compassEvt = null, compassCheck = null;
+  function onOrient(e) {
+    var hd = e.webkitCompassHeading != null ? e.webkitCompassHeading : (e.alpha == null ? null : 360 - e.alpha);
+    if (hd == null || (compassEvt === "deviceorientation" && e.webkitCompassHeading == null && !e.absolute)) return;
+    var so = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
+    hd = (hd + so + 360) % 360;
+    if (headS == null) headS = hd;
+    var diff = ((hd - headS + 540) % 360) - 180;
+    headS = (headS + diff * 0.25 + 360) % 360;
+    var now = Date.now();
+    if (!map || !map.setBearing || now - lastTurn < 80) return;
+    if (lastBearing != null && Math.abs(((headS - lastBearing + 540) % 360) - 180) < 1.5) return;
+    lastTurn = now; lastBearing = headS;
+    map.setBearing(-headS);
+  }
+  function startCompass() {
+    compassEvt = "ondeviceorientationabsolute" in window ? "deviceorientationabsolute" : "deviceorientation";
+    headS = null; lastBearing = null;
+    window.addEventListener(compassEvt, onOrient);
+    compassCheck = setTimeout(function () {
+      if (compassOn && headS == null) { toast("Boussole indisponible sur ce téléphone"); toggleCompass(); }
+    }, 2500);
+  }
+  function stopCompass() {
+    if (compassEvt) window.removeEventListener(compassEvt, onOrient);
+    compassEvt = null; clearTimeout(compassCheck);
+  }
+  function toggleCompass() {
+    if (!map || !map.setBearing) { toast("Rotation de la carte indisponible hors connexion"); return; }
+    if (compassOn) {
+      compassOn = false; stopCompass();
+      toast("Trou vers le haut");
+      fitHole(holeGeo(round.course.id, curKey()));
+    } else {
+      var go_ = function () {
+        compassOn = true; startCompass();
+        toast("Boussole : la carte suit ton téléphone");
+        if (me) map.panTo(me.pos);
+      };
+      if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === "function") {
+        DeviceOrientationEvent.requestPermission().then(function (r) { if (r === "granted") go_(); else toast("Boussole refusée"); }).catch(function () { toast("Boussole indisponible"); });
+      } else go_();
+    }
+    var b = $("#mCompass"); if (b) b.classList.toggle("on", compassOn);
+  }
+  var tapTimer = null;
   function onMapClick(e) {
     var p = [e.latlng.lat, e.latlng.lng];
     if (editMode) {
@@ -1341,8 +1600,9 @@
       renderMapContent(false);
       return;
     }
-    target = p;
-    renderMapContent(false);
+    // on attend un peu : un double tap ouvre/ferme le plein écran au lieu de poser une cible
+    clearTimeout(tapTimer);
+    tapTimer = setTimeout(function () { tapTimer = null; target = p; renderMapContent(false); }, 280);
   }
   function setGeoPoint(k, p) {
     var cid = round.course.id, key = curKey();
@@ -1363,7 +1623,7 @@
   function closeOpenShot(withPos) {
     var s = openShot();
     if (!s) return null;
-    if (withPos && me) {
+    if (withPos === true && me) {
       s.end = r6(me.pos);
       s.d = Math.round(distM(s.pos, s.end));
       var club = clubById(s.club);
@@ -1372,59 +1632,66 @@
         clubs.shots[s.club].push({ d: s.d, date: new Date().toISOString() });
         persist("clubs");
       }
+    } else if (withPos) {
+      // pas de GPS : le coup reste compté, sans distance
+      s.end = s.pos; s.d = null;
     } else {
       round.shots.pop();
     }
     persist("round");
     return s;
   }
-  function renderShotZone() {
+  function shotHere() {
+    if (!me) { toast(gpsError === "refus" ? "Autorise la localisation pour mesurer tes coups" : "GPS pas encore prêt, patiente un instant"); return; }
+    if (me.acc > 30) toast("GPS peu précis (± " + Math.round(me.acc) + " m), la distance sera approximative");
+    var g = holeGeo(round.course.id, curKey()), o = origin(g), tf = targetFrom(g);
+    var dist = target && tf ? distM(tf.pos, target) : (o && g.c ? distM(o.pos, g.c) : null);
+    var sug = suggestClub(dist);
+    var list = clubs.list.filter(function (cl) { return !cl.putter; });
+    if (sug) list = [sug.c].concat(list.filter(function (cl) { return cl.id !== sug.c.id; }));
+    openSheet("<h3>Quel club ?</h3><p>" + (dist ? "Il te reste " + Math.round(dist) + " m." : "Choisis le club de ce coup.") + " Un seul toucher suffit.</p>" +
+      '<div class="club-pick">' + list.map(function (cl) {
+        var cd = clubDistance(cl).d, isSug = sug && sug.c.id === cl.id;
+        return '<button data-c="' + esc(cl.id) + '" class="' + (isSug ? "sug" : "") + '">' + esc(cl.name) + "<small>" + (isSug ? "Conseillé" + (cd ? " · " + cd + " m" : "") : cd ? cd + " m" : "&nbsp;") + "</small></button>";
+      }).join("") + "</div>", function () {
+      $$(".club-pick button").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var prev = closeOpenShot(true);
+          round.shots = round.shots || [];
+          round.shots.push({ hole: round.holeIndex, club: b.getAttribute("data-c"), pos: r6(me.pos), t: Date.now() });
+          if (!round.t0) round.t0 = Date.now();
+          target = null;
+          persist("round");
+          closeSheet();
+          var n = holeShots(round.holeIndex).length;
+          toast((prev && prev.d ? (clubById(prev.club) || {}).name + " : " + prev.d + " m · " : "") + "Coup " + n + " enregistré");
+          renderMapContent(false);
+        });
+      });
+    });
+  }
+  function renderShotZone(green) {
     var z = $("#shotZone");
     if (!z) return;
     if (editMode) { z.innerHTML = ""; return; }
     var s = openShot();
-    var done = (round.shots || []).filter(function (x) { return x.hole === round.holeIndex && x.end; });
-    var info = s ? "Coup au <b>" + esc((clubById(s.club) || {}).name || "?") + "</b> en cours. Va jusqu'à ta balle, puis touche « Je tape d'ici » pour le coup suivant, ou « Ma balle est ici »." :
-      done.length ? done.map(function (x) { return esc((clubById(x.club) || {}).name || "?") + " " + x.d + " m"; }).join(" · ") :
-        "Avant chaque coup, touche « Je tape d'ici » : l'appli mesure la distance de tes clubs.";
-    z.innerHTML = '<div class="map-actions"><button class="btn" id="shotHere">' + ic("swing") + "Je tape d'ici</button>" +
-      '<button class="btn ghost" id="shotEnd" ' + (s ? "" : "disabled style=\"opacity:.45\"") + ">" + ic("ball") + "Ma balle est ici</button></div>" +
-      '<div class="shot-info">' + info + "</div>" +
+    var all = holeShots(round.holeIndex);
+    var done = all.filter(function (x) { return x.end && x.d; });
+    var info = (all.length ? "<b>" + all.length + " coup" + (all.length > 1 ? "s" : "") + "</b> enregistré" + (all.length > 1 ? "s" : "") + " sur ce trou" : "Avant chaque coup, touche « Je tape d'ici » et choisis ton club.") +
+      (done.length ? "<br>" + done.map(function (x) { return esc((clubById(x.club) || {}).name || "?") + " " + x.d + " m"; }).join(" · ") : "") +
+      (s ? "<br>" + esc((clubById(s.club) || {}).name || "?") + " en cours : mesuré au prochain coup ou à l'arrivée sur le green." : "");
+    z.innerHTML = (green ? '<button class="btn gold big-act" id="valHere">' + ic("edit") + "Valider le trou</button>" : "") +
+      '<button class="btn big-act' + (green ? " ghost" : "") + '" id="shotHere">' + ic("swing") + "Je tape d'ici</button>" +
+      '<div class="shot-info">' + info + (s ? ' <button class="link-btn" id="shotUndo">Annuler ce coup</button>' : "") + "</div>" +
       '<div class="map-mini"><button class="btn ghost sm" id="mRecenter">' + ic("locate") + 'Recentrer</button><button class="btn ghost sm" id="mClear">Effacer la cible</button><button class="btn ghost sm" id="mEdit">' + ic("pin") + "Placer les points</button></div>";
-    on("shotHere", "click", function () {
-      if (!me) { toast(gpsError === "refus" ? "Autorise la localisation pour mesurer tes coups" : "GPS pas encore prêt, patiente un instant"); return; }
-      if (me.acc > 30) toast("GPS peu précis (± " + Math.round(me.acc) + " m), la distance sera approximative");
-      var g = holeGeo(round.course.id, curKey()), o = origin(g);
-      var dist = target && o ? distM(o.pos, target) : (o && g.c ? distM(o.pos, g.c) : null);
-      var sug = suggestClub(dist);
-      openSheet("<h3>Quel club ?</h3><p>" + (dist ? "Il te reste " + Math.round(dist) + " m" + (sug ? ", le caddie conseille le " + esc(sug.c.name) : "") + "." : "Choisis le club de ce coup.") + "</p>" +
-        '<div class="club-pick">' + clubs.list.map(function (cl) {
-          var cd = clubDistance(cl).d;
-          return '<button data-c="' + esc(cl.id) + '" class="' + (sug && sug.c.id === cl.id ? "sug" : "") + '">' + esc(cl.name) + "<small>" + (cd ? cd + " m" : "&nbsp;") + "</small></button>";
-        }).join("") + "</div>", function () {
-        $$(".club-pick button").forEach(function (b) {
-          b.addEventListener("click", function () {
-            var prev = closeOpenShot(true);
-            round.shots = round.shots || [];
-            round.shots.push({ hole: round.holeIndex, club: b.getAttribute("data-c"), pos: r6(me.pos), t: Date.now() });
-            persist("round");
-            closeSheet();
-            toast(prev && prev.d ? (clubById(prev.club) || {}).name + " : " + prev.d + " m enregistrés" : "Coup enregistré");
-            renderMapContent(false);
-          });
-        });
-      });
-    });
-    on("shotEnd", "click", function () {
-      if (!me) { toast("GPS pas encore prêt"); return; }
-      var s2 = closeOpenShot(true);
-      if (s2) toast((clubById(s2.club) || {}).name + " : " + s2.d + " m enregistrés");
-      renderMapContent(false);
-    });
+    on("shotHere", "click", shotHere);
+    on("valHere", "click", openValidation);
+    on("shotUndo", "click", function () { closeOpenShot(false); toast("Coup annulé"); renderMapContent(false); });
     on("mRecenter", "click", function () { fitHole(holeGeo(round.course.id, curKey())); });
     on("mClear", "click", function () { target = null; renderMapContent(false); });
     on("mEdit", "click", function () {
       editMode = true; target = null;
+      if (isFull) setFull(false);
       var g = holeGeo(round.course.id, curKey());
       editPoint = !g.tee ? "tee" : (!g.c ? "c" : "f");
       renderMapContent(false);
@@ -1487,15 +1754,18 @@
       (h.par > 3 ? '<div class="line-row"><span class="t">Fairway</span>' + yn("sFw", h.fairway, [["oui", "Touché"], ["non", "Raté"]]) + "</div>" : "") +
       '<div class="line-row"><span class="t">Green en régul.</span>' + yn("sGir", h.gir, [["oui", "Oui"], ["non", "Non"]]) + "</div>" +
       '<div class="line-row"><span class="t">Putts</span><div class="stepper"><button id="puM">−</button><span class="v num">' + h.putts + '</span><button id="puP">+</button></div></div>' +
+      '<div class="line-row"><span class="t">Pénalités</span><div class="stepper"><button id="peM">−</button><span class="v num">' + (h.pen || 0) + '</span><button id="peP">+</button></div></div>' +
       (h.gir === "non" ? '<div class="line-row"><span class="t">Up &amp; down</span>' + yn("sUd", h.upDown, [["oui", "Réussi"], ["non", "Raté"]]) + "</div>" : "") +
       "</div>" +
       '<div class="card"><h2>Ma note sur ce trou</h2><textarea class="input" id="sNote" placeholder="Danger, club, plan de jeu… Elle reviendra à chaque partie ici.">' +
       esc(getNote(round.course.id, key)) + '</textarea><div class="muted small" style="margin-top:8px">Enregistrée automatiquement dans ton carnet de parcours.</div></div>';
-    function setv(k, v) { h[k] = v; persist("round"); renderScoreTab(); renderPlayHead(); }
+    function setv(k, v) { h[k] = v; h.done = true; if (!round.t0) round.t0 = Date.now(); persist("round"); renderScoreTab(); renderPlayHead(); }
     on("scM", "click", function () { setv("score", Math.max(1, h.score - 1)); });
     on("scP", "click", function () { setv("score", h.score + 1); });
     on("puM", "click", function () { setv("putts", Math.max(0, h.putts - 1)); });
     on("puP", "click", function () { setv("putts", h.putts + 1); });
+    on("peM", "click", function () { setv("pen", Math.max(0, (h.pen || 0) - 1)); });
+    on("peP", "click", function () { setv("pen", (h.pen || 0) + 1); });
     $$("#sPar button").forEach(function (b) { b.addEventListener("click", function () { var v = +b.getAttribute("data-v"); h.fairway = v === 3 ? "na" : (h.fairway === "na" ? null : h.fairway); setv("par", v); }); });
     [["sFw", "fairway"], ["sGir", "gir"], ["sUd", "upDown"]].forEach(function (x) {
       $$("#" + x[0] + " button").forEach(function (b) { b.addEventListener("click", function () { setv(x[1], b.getAttribute("data-v")); }); });
@@ -1572,7 +1842,8 @@
       date: round.date, course: c.fullName, courseId: round.course.id, type: round.type, format: round.format,
       countsForIndex: round.type === "competition", totalScore: t.score, totalPar: t.par, putts: t.putts,
       avgPutts: (t.putts / round.holes.length).toFixed(1), fwHit: t.fwHit, fwCount: t.fwCount, girHit: t.girHit, girCount: t.girCount,
-      udHit: t.udHit, udCount: t.udCount, stablefordPoints: totalPoints(true), hcp: round.course.hcp,
+      udHit: t.udHit, udCount: t.udCount, stablefordPoints: totalPoints(true), hcp: round.course.hcp, penalties: t.pen,
+      durationMin: round.t0 ? Math.round((Date.now() - round.t0) / 60000) : null, walkKm: round.walk ? r1(round.walk / 1000) : null,
       holes: round.holes.map(function (h, k) { return { hole: k + 1, score: h.score, par: h.par }; })
     };
     history.push(entry);
