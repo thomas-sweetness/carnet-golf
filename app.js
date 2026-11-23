@@ -854,6 +854,7 @@
       "</span><span>Secteur au hasard<small>Laisse l'appli choisir ta séance du jour</small></span></button></div>" +
       '<h2 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:24px 4px 12px">Mes plans</h2>' +
       (plans || "<div class=\"card\"><div class=\"empty\">Aucun plan pour l'instant. Importe ton plan d'entraînement : il restera uniquement dans ce téléphone.</div></div>") +
+      '<button class="btn" id="tFetch" style="margin-bottom:10px">' + ic("upload") + "Récupérer mes plans</button>" +
       '<div class="row" style="margin-top:4px"><button class="btn ghost" id="tImport">' + ic("upload") + 'Importer</button><button class="btn ghost" id="tAdd">' + ic("plus") + "Ajouter un exercice</button></div>" +
       '<input type="file" id="tFile" accept=".md,.txt,text/markdown,text/plain" hidden />' +
       '<p class="muted small" style="margin:12px 4px 0;line-height:1.45">Import : un fichier texte ou Markdown (.md), avec des titres « ## » et des exercices sous la forme « - [ ] texte ». Les semaines s\'écrivent « **S1 · 23 nov — Thème** ».</p>');
@@ -864,6 +865,7 @@
       toast("Aujourd'hui : " + s.label);
       go("sector", { id: s.id });
     });
+    on("tFetch", "click", fetchPlansSheet);
     on("tImport", "click", function () {
       openSheet("<h3>Importer un plan</h3><p>Ton plan reste uniquement dans ce téléphone.</p>" +
         '<button class="btn ghost" id="imFile">' + ic("upload") + "Choisir un fichier .md</button>" +
@@ -890,7 +892,45 @@
     on("tAdd", "click", function () { addExerciseSheet(); });
   };
 
-  function addPlan(md, fallback) {
+  // Plans privés : stockés chiffrés sur le site (plans.enc.json), illisibles sans le code de Thomas.
+  function fetchPlansSheet() {
+    openSheet("<h3>Récupérer mes plans</h3><p>Tape ton code. Il sert à déchiffrer tes plans, il n'est enregistré nulle part.</p>" +
+      '<div class="field"><input class="input" id="fpCode" placeholder="XXXX-XXXX-XXXX" autocapitalize="characters" autocomplete="off" spellcheck="false" /></div>' +
+      '<button class="btn" id="fpOk">Récupérer</button>', function () {
+      on("fpOk", "click", function () {
+        var code = $("#fpCode").value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+        if (code.length !== 12) { toast("Le code fait 12 caractères"); return; }
+        code = code.slice(0, 4) + "-" + code.slice(4, 8) + "-" + code.slice(8);
+        $("#fpOk").disabled = true; $("#fpOk").textContent = "Déchiffrement…";
+        decryptPlans(code).then(function (d) {
+          var titles = allPlans().map(function (x) { return x.title; }), n = 0, found = 0;
+          d.plans.forEach(function (pl) {
+            var t = ((pl.md.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "").match(/^#\s+(.+)$/m) || [])[1] || pl.name).trim();
+            if (titles.indexOf(t) >= 0) return;
+            if (addPlan(pl.md, pl.name, true)) found++;
+            n++;
+          });
+          closeSheet();
+          toast(n ? n + " plan" + (n > 1 ? "s" : "") + " récupéré" + (n > 1 ? "s" : "") + (found ? ", progression retrouvée" : "") : "Tes plans sont déjà là");
+          show(current);
+        }).catch(function () {
+          $("#fpOk").disabled = false; $("#fpOk").textContent = "Récupérer";
+          toast(navigator.onLine === false ? "Pas de réseau" : "Code incorrect");
+        });
+      });
+    });
+  }
+  function decryptPlans(code) {
+    function b64(s) { return Uint8Array.from(atob(s), function (c) { return c.charCodeAt(0); }); }
+    return fetch("plans.enc.json", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (e) {
+      return crypto.subtle.importKey("raw", new TextEncoder().encode(code), "PBKDF2", false, ["deriveKey"]).then(function (k) {
+        return crypto.subtle.deriveKey({ name: "PBKDF2", salt: b64(e.salt), iterations: e.iter, hash: "SHA-256" }, k, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+      }).then(function (key) {
+        return crypto.subtle.decrypt({ name: "AES-GCM", iv: b64(e.iv) }, key, b64(e.ct));
+      }).then(function (buf) { return JSON.parse(new TextDecoder().decode(buf)); });
+    });
+  }
+  function addPlan(md, fallback, silent) {
     md = md.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "").replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, "$2").replace(/\[\[([^\]]+)\]\]/g, "$1");
     var title = ((md.match(/^#\s+(.+)$/m) || [])[1] || fallback).trim();
     var id = "p_" + Date.now().toString(36);
@@ -907,6 +947,7 @@
     if (best) id = best;
     plansState.custom.push({ id: id, title: title, md: md });
     persist("plans");
+    if (silent) return !!best;
     toast(best ? "Plan importé, ta progression est retrouvée" : "Plan importé");
     go("plan", { id: id });
   }
