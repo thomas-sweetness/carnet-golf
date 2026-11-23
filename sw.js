@@ -1,6 +1,6 @@
 // Hors ligne : l'appli est servie depuis le cache tout de suite et mise à jour en arrière-plan.
 // Les tuiles satellite déjà vues sont gardées pour le parcours (cache séparé, plafonné).
-var CACHE = "carnet-golf-v11";
+var CACHE = "carnet-golf-v12";
 var TILES = "carnet-golf-tiles";
 var MAX_TILES = 1500;
 var FILES = [
@@ -11,7 +11,10 @@ var FILES = [
 ];
 
 self.addEventListener("install", function (e) {
-  e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(FILES); }).then(function () { return self.skipWaiting(); }));
+  // cache: "reload" : on ignore le cache HTTP du navigateur pour récupérer vraiment la nouvelle version
+  e.waitUntil(caches.open(CACHE).then(function (c) {
+    return c.addAll(FILES.map(function (u) { return new Request(u, { cache: "reload" }); }));
+  }).then(function () { return self.skipWaiting(); }));
 });
 self.addEventListener("activate", function (e) {
   e.waitUntil(caches.keys().then(function (keys) {
@@ -48,13 +51,18 @@ self.addEventListener("fetch", function (e) {
   // Recherches en ligne (cartes, lieux) : jamais en cache
   if (url.indexOf("overpass") !== -1 || url.indexOf("nominatim") !== -1 || url.indexOf("open-meteo") !== -1) return;
 
+  // Fichiers de l'appli : réseau d'abord (toujours la dernière version), cache si pas de réseau ou réseau trop lent
+  var own = url.indexOf(self.location.origin) === 0;
   e.respondWith(caches.open(CACHE).then(function (cache) {
     return cache.match(e.request, { ignoreSearch: true }).then(function (hit) {
-      var net = fetch(e.request).then(function (res) {
+      var net = fetch(own ? new Request(e.request, { cache: "no-cache" }) : e.request).then(function (res) {
         if (res && res.ok) cache.put(e.request, res.clone());
         return res;
-      }).catch(function () { return hit; });
-      return hit || net;
+      });
+      if (!own) return hit || net;
+      if (!hit) return net;
+      var slow = new Promise(function (ok) { setTimeout(function () { ok(hit); }, 3500); });
+      return Promise.race([net.catch(function () { return hit; }), slow]);
     });
   }));
 });

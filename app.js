@@ -326,7 +326,9 @@
     closeSheet();
     show(e.state && e.state.name ? e.state : { name: "home", params: {} });
   });
+  var updateWaiting = false;
   function show(st) {
+    if (updateWaiting && st.name !== "play") { updateWaiting = false; history_replace(st); location.reload(); return; }
     if (leaveHook) { try { leaveHook(); } catch (e) {} leaveHook = null; }
     current = st;
     var fn = VIEWS[st.name] || VIEWS.home;
@@ -2464,6 +2466,17 @@
   history_replace(start);
   show(start);
   if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
-    navigator.serviceWorker.register("sw.js").catch(function () {});
+    // Mise à jour : on vérifie à chaque retour sur l'appli, et on recharge dès qu'une nouvelle version prend la main
+    // (pas pendant une partie : on attend que tu quittes l'écran de jeu)
+    var hadCtrl = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(function (reg) {
+      document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") reg.update().catch(function () {}); });
+    }).catch(function () {});
+    navigator.serviceWorker.addEventListener("controllerchange", function () {
+      if (!hadCtrl) return;
+      hadCtrl = false;
+      if (current.name !== "play") location.reload();
+      else updateWaiting = true;
+    });
   }
 })();
