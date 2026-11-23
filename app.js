@@ -894,9 +894,20 @@
     md = md.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "").replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, "$2").replace(/\[\[([^\]]+)\]\]/g, "$1");
     var title = ((md.match(/^#\s+(.+)$/m) || [])[1] || fallback).trim();
     var id = "p_" + Date.now().toString(36);
+    // Si des cases cochées existent sous un ancien plan disparu (ex. plans autrefois intégrés à l'appli),
+    // on reprend son identifiant pour retrouver la progression.
+    var known = allPlans().map(function (p) { return p.id; });
+    var keys = parsePlan({ id: id, md: md }).tasks.map(function (t) { return t.key; });
+    var best = null, bestN = 0;
+    Object.keys(plansState.checks || {}).forEach(function (pid) {
+      if (known.indexOf(pid) >= 0) return;
+      var n = keys.filter(function (k) { return plansState.checks[pid][k]; }).length;
+      if (n > bestN) { bestN = n; best = pid; }
+    });
+    if (best) id = best;
     plansState.custom.push({ id: id, title: title, md: md });
     persist("plans");
-    toast("Plan importé");
+    toast(best ? "Plan importé, ta progression est retrouvée" : "Plan importé");
     go("plan", { id: id });
   }
   function myPlan() {
