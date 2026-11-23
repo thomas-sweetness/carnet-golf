@@ -473,5 +473,6 @@ body.map-fs #mFull { display: none; }
 .resume-banner { position: relative; overflow: hidden; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .resume-banner > span { position: relative; z-index: 1; }
 .resume-banner .fill { position: absolute; inset: 0; z-index: 0; background: rgba(214, 69, 46, 0.28); transform: scaleX(0); transform-origin: left; }
-.resume-banner.pressing .fill { transform: scaleX(1); transition: transform 2s linear; }
+.resume-banner.pressing .fill { transform: scaleX(1); transition: transform 1.2s linear; }
 .stop-btn { color: #d0452e; }
+.hello small .idx { color: var(--primary); font-weight: 800; text-transform: none; }

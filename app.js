@@ -435,7 +435,8 @@
       esc(rc.short + (rc.optLabel ? " · " + rc.optLabel : "")) + " · trou " + (round.holeIndex + 1) + "/" + round.holes.length + "</span></span>" +
       '<span style="margin-left:auto">' + ic("next") + "</span></button>" : "";
     var nt = nextTaskAny();
-    page('<div class="home-head"><div class="hello">' + greeting() + " " + esc(profile.name) + "<small>" + esc(today) + "</small></div>" +
+    var idx = profile.index != null && profile.index !== "" ? ' · <b class="idx">Index ' + fmtIndex(profile.index) + "</b>" : "";
+    page('<div class="home-head"><div class="hello">' + greeting() + " " + esc(profile.name) + "<small>" + esc(today) + idx + "</small></div>" +
       '<button class="icon-btn" data-go="settings" aria-label="Réglages">' + ic("gear") + "</button></div>" +
       '<div class="widgets"><div class="wdg wdg-wx" id="wx" role="button" tabindex="0"><div class="wx-empty">Météo…</div></div><div class="wdg wdg-sun" id="sun"></div></div>' +
       '<div class="wx-strip" id="wxH"></div>' + resume +
@@ -453,7 +454,7 @@
     renderWeather();
     bindResume();
   };
-  // Appui court : reprendre. Appui long (2 s) : proposer de supprimer la partie.
+  // Appui court : reprendre. Appui long (1,2 s) : proposer de supprimer la partie.
   function bindResume() {
     var b = $("#hResume");
     if (!b) return;
@@ -466,7 +467,7 @@
         fired = true; cancel();
         if (navigator.vibrate) navigator.vibrate(60);
         deleteRoundSheet();
-      }, 2000);
+      }, 1200);
     });
     ["pointerup", "pointerleave", "pointercancel"].forEach(function (ev) { b.addEventListener(ev, cancel); });
     b.addEventListener("contextmenu", function (e) { e.preventDefault(); });
@@ -480,6 +481,7 @@
       if (after) after(); else show(current);
     }, true);
   }
+  function fmtIndex(v) { return String(v).replace(".", ","); }
   function shorten(s, n) { s = String(s).replace(/\*\*/g, ""); return s.length > n ? s.slice(0, n - 1) + "…" : s; }
 
   // ---------- Météo (Open-Meteo, sans clé) ----------
@@ -608,6 +610,8 @@
   VIEWS.settings = function () {
     page(topbar("Réglages") +
       '<div class="card"><div class="field"><label>Ton prénom</label><input class="input" id="sName" value="' + esc(profile.name) + '" /></div>' +
+      '<div class="field"><label>Mon index</label><input class="input" id="sIndex" inputmode="decimal" placeholder="Ex. 13,6" value="' +
+      (profile.index != null ? esc(fmtIndex(profile.index)) : "") + '" /><div class="muted small" style="margin-top:6px">Affiché sur l\'accueil à côté de la date. Laisse vide pour le masquer.</div></div>' +
       '<div class="field" style="margin-bottom:0"><label>Apparence</label><div class="seg" id="sTheme">' +
       ["auto", "light", "dark"].map(function (t) {
         return '<button data-t="' + t + '" class="' + ((profile.theme || "auto") === t ? "on" : "") + '">' + { auto: "Auto", light: "Clair", dark: "Sombre" }[t] + "</button>";
@@ -618,6 +622,15 @@
       '<button class="btn ghost" id="sImport">' + ic("upload") + "Restaurer une sauvegarde</button>" +
       '<input type="file" id="sFile" accept="application/json,.json" hidden /></div>' +
       '<p class="muted small" style="text-align:center">Imagerie satellite © Esri · données de parcours © OpenStreetMap · météo Open-Meteo</p>');
+    on("sIndex", "change", function () {
+      var raw = $("#sIndex").value.trim().replace(",", ".");
+      if (raw === "") { delete profile.index; persist("profile"); toast("Index masqué"); return; }
+      var v = parseFloat(raw);
+      if (isNaN(v) || v < -10 || v > 54) { toast("Index entre -10 et 54, par exemple 13,6"); return; }
+      profile.index = Math.round(v * 10) / 10; persist("profile");
+      $("#sIndex").value = fmtIndex(profile.index);
+      toast("Index enregistré");
+    });
     on("sName", "change", function () { var v = $("#sName").value.trim(); if (v) { profile.name = v; persist("profile"); toast("Prénom enregistré"); } });
     $$("#sTheme button").forEach(function (b) {
       b.addEventListener("click", function () {
