@@ -75,7 +75,12 @@
     snow: '<path d="M17.5 14H8a5 5 0 1 1 1-9.9A6 6 0 0 1 20.4 6 4 4 0 0 1 17.5 14z"/><path d="M8 18h.01"/><path d="M12 20h.01"/><path d="M16 18h.01"/>',
     storm: '<path d="M17.5 14H8a5 5 0 1 1 1-9.9A6 6 0 0 1 20.4 6 4 4 0 0 1 17.5 14z"/><path d="M12 15l-2 4h4l-2 4"/>',
     fog: '<path d="M4 9h16"/><path d="M3 13h18"/><path d="M5 17h14"/>',
-    wind: '<path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 12h16a3 3 0 1 1-3 3"/><path d="M3 16h7"/>'
+    wind: '<path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 12h16a3 3 0 1 1-3 3"/><path d="M3 16h7"/>',
+    dawn: '<path d="M3 18h18"/><path d="M7 18a5 5 0 0 1 10 0"/><path d="M5 21h14"/>',
+    sunrise: '<path d="M3 18h18"/><path d="M7 18a5 5 0 0 1 10 0"/><path d="M12 3v6"/><path d="M9 6l3-3 3 3"/>',
+    sunset: '<path d="M3 18h18"/><path d="M7 18a5 5 0 0 1 10 0"/><path d="M12 9V3"/><path d="M9 6l3 3 3-3"/>',
+    dusk: '<path d="M3 18h18"/><path d="M5 21h14"/><path d="M16 9.5A4.5 4.5 0 1 1 11.5 5a3.5 3.5 0 0 0 4.5 4.5z"/>',
+    stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>'
   };
   function ic(name, cls) { return '<svg class="i ' + (cls || "") + '" viewBox="0 0 24 24">' + (P[name] || "") + "</svg>"; }
 
@@ -424,13 +429,14 @@
     if (!profile.name) { VIEWS.welcome(); return; }
     var today = new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
     var rc = roundCourse();
-    var resume = rc ? '<button class="resume-banner" data-go="play"><span class="dot"></span><span>Reprendre la partie<span class="s">' +
+    var resume = rc ? '<button class="resume-banner" id="hResume"><span class="fill"></span><span class="dot"></span><span>Reprendre la partie<span class="s">' +
       esc(rc.short + (rc.optLabel ? " · " + rc.optLabel : "")) + " · trou " + (round.holeIndex + 1) + "/" + round.holes.length + "</span></span>" +
       '<span style="margin-left:auto">' + ic("next") + "</span></button>" : "";
     var nt = nextTaskAny();
     page('<div class="home-head"><div class="hello">' + greeting() + " " + esc(profile.name) + "<small>" + esc(today) + "</small></div>" +
       '<button class="icon-btn" data-go="settings" aria-label="Réglages">' + ic("gear") + "</button></div>" +
-      '<div class="hero" id="wx"><div class="wx-empty">Météo en cours de chargement…</div></div>' + resume +
+      '<div class="widgets"><div class="wdg wdg-wx" id="wx" role="button" tabindex="0"><div class="wx-empty">Météo…</div></div><div class="wdg wdg-sun" id="sun"></div></div>' +
+      '<div class="wx-strip" id="wxH"></div>' + resume +
       '<div class="bento">' +
       '<button class="tile wide play" data-go="newround"><span class="ic">' + ic("flag") + '</span><span><span class="lb">Jouer une partie</span>' +
       '<span class="ds">Entraînement ou compétition, 9 ou 18 trous</span></span><span class="go">' + ic("next") + "</span></button>" +
@@ -443,7 +449,35 @@
       history.length + " partie" + (history.length > 1 ? "s" : "") + " enregistrée" + (history.length > 1 ? "s" : "") + "</span></span></button>" +
       "</div>");
     renderWeather();
+    bindResume();
   };
+  // Appui court : reprendre. Appui long (2 s) : proposer de supprimer la partie.
+  function bindResume() {
+    var b = $("#hResume");
+    if (!b) return;
+    var timer = null, fired = false;
+    function cancel() { clearTimeout(timer); timer = null; b.classList.remove("pressing"); }
+    b.addEventListener("pointerdown", function () {
+      fired = false;
+      b.classList.add("pressing");
+      timer = setTimeout(function () {
+        fired = true; cancel();
+        if (navigator.vibrate) navigator.vibrate(60);
+        deleteRoundSheet();
+      }, 2000);
+    });
+    ["pointerup", "pointerleave", "pointercancel"].forEach(function (ev) { b.addEventListener(ev, cancel); });
+    b.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+    b.addEventListener("click", function (e) { if (fired) { e.preventDefault(); fired = false; return; } go("play", {}); });
+  }
+  function deleteRoundSheet(after) {
+    var rc = roundCourse();
+    confirmSheet("Supprimer la partie en cours ?", (rc ? rc.short + ", trou " + (round.holeIndex + 1) + "/" + round.holes.length + ". " : "") +
+      "Les scores et les coups déjà saisis seront effacés définitivement. Rien ne sera gardé dans tes statistiques.", "Oui, supprimer la partie", function () {
+      round = null; persist("round"); toast("Partie supprimée");
+      if (after) after(); else show(current);
+    }, true);
+  }
   function shorten(s, n) { s = String(s).replace(/\*\*/g, ""); return s.length > n ? s.slice(0, n - 1) + "…" : s; }
 
   // ---------- Météo (Open-Meteo, sans clé) ----------
@@ -512,17 +546,58 @@
     var box = $("#wx");
     if (!box || !w.data || !w.data.current) return;
     var c = w.data.current, h = w.data.hourly || {};
-    var hours = "";
-    var times = h.time || [];
-    for (var k = 1; k < times.length && k <= 8; k++) {
+    box.innerHTML = '<div class="wx-top">' + ic(WMO(c.weather_code, c.is_day)) + '<span class="t num">' + Math.round(c.temperature_2m) + "°</span></div>" +
+      '<div class="wx-d">' + WMO_TXT(c.weather_code) + "</div>" +
+      '<div class="wx-s">' + ic("wind") + Math.round(c.wind_speed_10m) + " km/h " + windDir(c.wind_direction_10m) + "</div>" +
+      '<div class="wx-s pl">' + (w.place ? esc(w.place) + " · " : "") + "ressenti " + Math.round(c.apparent_temperature) + "°</div>";
+    box.onclick = function () { window.open(meteoblueUrl(w.pos), "_blank", "noopener"); };
+    var strip = $("#wxH"), times = h.time || [], hours = "";
+    for (var k = 1; k < times.length && k <= 4; k++) {
       var pp = h.precipitation_probability ? h.precipitation_probability[k] : null;
       hours += '<div class="wx-h"><span class="h">' + times[k].slice(11, 13) + "h</span>" + ic(WMO(h.weather_code[k], h.is_day ? h.is_day[k] : 1)) +
-        '<span class="num">' + Math.round(h.temperature_2m[k]) + '°</span><span class="p">' + (pp >= 20 ? pp + "%" : "") + "</span></div>";
+        '<span class="num">' + Math.round(h.temperature_2m[k]) + "°</span>" + (pp >= 20 ? '<span class="p">' + pp + "%</span>" : "") + "</div>";
     }
-    box.innerHTML = '<div class="wx-now">' + ic(WMO(c.weather_code, c.is_day)) + '<div class="t num">' + Math.round(c.temperature_2m) + '°</div>' +
-      '<div class="wx-meta"><b>' + WMO_TXT(c.weather_code) + "</b><br>" + (w.place ? esc(w.place) + " · " : "") + "ressenti " + Math.round(c.apparent_temperature) +
-      "°<br>Vent " + Math.round(c.wind_speed_10m) + " km/h " + windDir(c.wind_direction_10m) + "</div></div>" +
-      (hours ? '<div class="wx-hours">' + hours + "</div>" : "");
+    if (strip) strip.innerHTML = hours;
+    drawSun(w.pos);
+  }
+  function meteoblueUrl(pos) {
+    function f(v, pz, ng) { return Math.abs(v).toFixed(3) + (v >= 0 ? pz : ng); }
+    return "https://www.meteoblue.com/fr/meteo/semaine/" + f(pos[0], "N", "S") + f(pos[1], "E", "W");
+  }
+  // ---------- Soleil : aube, lever, coucher, crépuscule (calcul local, d'après SunCalc) ----------
+  function sunTimes(date, lat, lng) {
+    var rad = Math.PI / 180, dayMs = 864e5, J1970 = 2440588, J2000 = 2451545, J0 = 0.0009, e = rad * 23.4397;
+    var d = date.valueOf() / dayMs - 0.5 + J1970 - J2000;
+    var lw = rad * -lng, phi = rad * lat;
+    var n = Math.round(d - J0 - lw / (2 * Math.PI));
+    var ds = J0 + lw / (2 * Math.PI) + n;
+    var M = rad * (357.5291 + 0.98560028 * ds);
+    var C = rad * (1.9148 * Math.sin(M) + 0.02 * Math.sin(2 * M) + 0.0003 * Math.sin(3 * M));
+    var L = M + C + rad * 102.9372 + Math.PI;
+    var dec = Math.asin(Math.sin(e) * Math.sin(L));
+    var Jnoon = J2000 + ds + 0.0053 * Math.sin(M) - 0.0069 * Math.sin(2 * L);
+    function fromJ(j) { return new Date((j + 0.5 - J1970) * dayMs); }
+    function pair(h) {
+      var cosw = (Math.sin(h * rad) - Math.sin(phi) * Math.sin(dec)) / (Math.cos(phi) * Math.cos(dec));
+      if (cosw < -1 || cosw > 1) return [null, null];
+      var w = Math.acos(cosw);
+      var Jset = J2000 + (J0 + (w + lw) / (2 * Math.PI) + n) + 0.0053 * Math.sin(M) - 0.0069 * Math.sin(2 * L);
+      return [fromJ(Jnoon - (Jset - Jnoon)), fromJ(Jset)];
+    }
+    var civ = pair(-6), sun = pair(-0.833);
+    return { dawn: civ[0], rise: sun[0], set: sun[1], dusk: civ[1] };
+  }
+  function drawSun(pos) {
+    var box = $("#sun");
+    if (!box || !pos) return;
+    var t = sunTimes(new Date(), pos[0], pos[1]), now = Date.now();
+    function hm(d) { return d ? ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2) : "—"; }
+    var rows = [["dawn", "Aube", "dawn"], ["rise", "Lever", "sunrise"], ["set", "Coucher", "sunset"], ["dusk", "Crépuscule", "dusk"]];
+    var nextK = null;
+    rows.forEach(function (r) { if (!nextK && t[r[0]] && t[r[0]] > now) nextK = r[0]; });
+    box.innerHTML = rows.map(function (r) {
+      return '<div class="sun-r' + (r[0] === nextK ? " next" : "") + '">' + ic(r[2]) + '<span class="l">' + r[1] + '</span><span class="v num">' + hm(t[r[0]]) + "</span></div>";
+    }).join("");
   }
 
   // =====================================================================
@@ -1138,7 +1213,8 @@
     if (!round || !roundCourse()) { go("newround", {}, true); return; }
     var tab = prm.tab || "map";
     page('<div class="play-head"><button class="icon-btn" id="pHome" aria-label="Accueil">' + ic("back") + '</button><div class="hole-badge num" id="pNum"></div>' +
-      '<div class="play-info"><div class="a" id="pA"></div><div class="b" id="pB"></div></div></div>' +
+      '<div class="play-info"><div class="a" id="pA"></div><div class="b" id="pB"></div></div>' +
+      '<button class="icon-btn stop-btn" id="pStop" aria-label="Arrêter la partie">' + ic("stop") + "</button></div>" +
       '<div class="play-tabs" id="pTabs"><button data-t="map">' + ic("map") + '<span>GPS</span></button><button data-t="score">' + ic("edit") + '<span>Score du trou</span></button><button data-t="card">' + ic("list") + "<span>Carte de score</span></button></div>" +
       '<div id="pBody"></div>' +
       '<div class="play-bar"><div class="inner"><button id="pPrev">' + ic("back") + 'Trou</button><button class="main" id="pNext">Trou suivant' + ic("next") + "</button></div></div>", "has-bar");
@@ -1147,6 +1223,7 @@
       b.addEventListener("click", function () { go("play", { tab: b.getAttribute("data-t") }, true); });
     });
     on("pHome", "click", function () { go("home", {}, false); });
+    on("pStop", "click", stopSheet);
     on("pPrev", "click", function () { moveHole(-1); });
     on("pNext", "click", nextHole);
     renderPlayHead();
@@ -1835,8 +1912,23 @@
     var played = round.holeIndex + 1, n = round.holes.length;
     confirmSheet("Terminer la partie ?", played < n ? "Tu es au trou " + played + " sur " + n + ". Les trous suivants seront comptés au score du par." : "La partie sera enregistrée dans tes statistiques.", "Enregistrer la partie", finishRound);
   }
-  function finishRound() {
+  function playedCount() { return round.holeIndex + (curHole().done ? 1 : 0); }
+  function stopSheet() {
+    var n = playedCount(), N = round.holes.length;
+    openSheet("<h3>Arrêter la partie ?</h3><p>" + (n ? n + " trou" + (n > 1 ? "s" : "") + " joué" + (n > 1 ? "s" : "") + " sur " + N + ". " +
+      "Tu peux garder ce qui est déjà saisi dans tes statistiques, ou tout effacer." : "Aucun trou n'est encore validé.") + "</p>" +
+      (n ? '<button class="btn" id="stSave">' + ic("check") + "Enregistrer les " + n + " trou" + (n > 1 ? "s" : "") + " joué" + (n > 1 ? "s" : "") + "</button>" : "") +
+      '<button class="btn danger" id="stDel">' + ic("trash") + "Supprimer complètement</button>" +
+      '<button class="btn ghost" id="stNo">Continuer à jouer</button>', function () {
+      on("stSave", "click", function () { closeSheet(); finishRound(n); });
+      on("stDel", "click", function () { deleteRoundSheet(function () { go("home", {}, true); }); });
+      on("stNo", "click", closeSheet);
+    });
+  }
+  function finishRound(upTo) {
     closeOpenShot(true);
+    var all = upTo == null || upTo >= round.holes.length;
+    if (!all) round.holes = round.holes.slice(0, upTo);
     var c = roundCourse(), t = totals(round);
     var entry = {
       date: round.date, course: c.fullName, courseId: round.course.id, type: round.type, format: round.format,
@@ -1850,7 +1942,7 @@
     persist("history");
     round = null;
     persist("round");
-    toast("Partie enregistrée");
+    toast(all ? "Partie enregistrée" : upTo + " trous enregistrés");
     go("stats", {}, true);
   }
 

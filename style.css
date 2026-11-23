@@ -445,3 +445,33 @@ table.sc .dbl { background: rgba(196, 69, 47, 0.14); color: var(--danger); }
 .spacer { height: 6px; }
 .tile .lb, .tile .ds, .list-btn .t, .list-btn .s, .sector .lb, .sector .ds { display: block; }
 body.map-fs #mFull { display: none; }
+
+/* ---------- Accueil : widgets météo + soleil ---------- */
+.widgets { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.wdg { border-radius: 22px; padding: 13px 14px; box-shadow: var(--shadow); min-height: 128px; text-align: left; border: none; font: inherit; }
+.wdg-wx { cursor: pointer; color: #fff; background: radial-gradient(120% 90% at 100% 0%, rgba(255,255,255,0.18), transparent 55%), linear-gradient(145deg, var(--hero-2), var(--hero-1)); display: flex; flex-direction: column; gap: 3px; }
+.wx-top { display: flex; align-items: center; gap: 8px; }
+.wx-top svg.i { width: 34px; height: 34px; stroke-width: 1.6; }
+.wx-top .t { font-size: 34px; font-weight: 800; letter-spacing: -0.04em; line-height: 1; }
+.wx-d { font-size: 14px; font-weight: 800; margin-top: 4px; }
+.wx-s { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; opacity: 0.9; }
+.wx-s svg.i { width: 14px; height: 14px; }
+.wx-s.pl { opacity: 0.75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.wdg-sun { background: var(--surface); color: var(--ink); display: grid; gap: 4px; align-content: center; }
+.sun-r { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; color: var(--muted); padding: 2px 0; }
+.sun-r svg.i { width: 17px; height: 17px; color: var(--accent); flex: none; }
+.sun-r .v { margin-left: auto; color: var(--ink); font-weight: 800; font-size: 14px; }
+.sun-r.next .l, .sun-r.next .v { color: var(--primary); }
+.wx-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 10px; background: var(--surface); border-radius: 16px; padding: 8px 4px; box-shadow: var(--shadow); }
+.wx-strip:empty { display: none; }
+.wx-strip .wx-h { flex-direction: row; justify-content: center; gap: 5px; font-size: 13px; }
+.wx-strip .wx-h svg.i { width: 18px; height: 18px; color: var(--accent); }
+.wx-strip .wx-h .h { color: var(--muted); }
+.wx-strip .wx-h .p { color: #3d8bd9; min-height: 0; }
+.wdg-wx .wx-empty button { margin-top: 6px; }
+/* bandeau partie en cours : appui long pour supprimer */
+.resume-banner { position: relative; overflow: hidden; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.resume-banner > span { position: relative; z-index: 1; }
+.resume-banner .fill { position: absolute; inset: 0; z-index: 0; background: rgba(214, 69, 46, 0.28); transform: scaleX(0); transform-origin: left; }
+.resume-banner.pressing .fill { transform: scaleX(1); transition: transform 2s linear; }
+.stop-btn { color: #d0452e; }
