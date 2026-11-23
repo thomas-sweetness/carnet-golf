@@ -1,6 +1,6 @@
 // Hors ligne : l'appli est servie depuis le cache tout de suite et mise à jour en arrière-plan.
 // Les tuiles satellite déjà vues sont gardées pour le parcours (cache séparé, plafonné).
-var CACHE = "carnet-golf-v14";
+var CACHE = "carnet-golf-v15";
 var TILES = "carnet-golf-tiles";
 var MAX_TILES = 1500;
 var FILES = [

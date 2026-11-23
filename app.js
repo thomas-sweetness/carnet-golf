@@ -1119,21 +1119,53 @@
     if (!COURSES[cid].loops && t.slope && t.sss) return { slope: t.slope, sss: t.sss, est: !!t.est };
     return null;
   }
+  // Valeurs officielles ffgolf pour exactement les trous joués.
+  // Renvoie { slope, sss, half } : half = index divisé par 2 (9 trous sans étalonnage 9 trous officiel).
+  function officialRating(cid, opt, tee, n) {
+    var F = (window.FFG_RATINGS || {})[cid];
+    if (!F) return null;
+    var c = COURSES[cid], v;
+    if (F.combos) {
+      if (n === 18) {
+        var cb = F.combos[opt.loops.slice().sort().join("|")];
+        v = cb && cb[tee] && cb[tee]["18"];
+        return v ? { slope: v[0], sss: v[1], half: false } : null;
+      }
+      var sg = F.single[opt.loops[0]];
+      v = sg && F.combos[sg[0]][tee] && F.combos[sg[0]][tee][sg[1]];
+      return v ? { slope: v[0], sss: v[1], half: false } : null;
+    }
+    var r = F[tee];
+    if (!r) return null;
+    if (F.twice) {
+      v = r["18"];
+      return n === 18 ? { slope: v[0], sss: v[1], half: false } : { slope: v[0], sss: Math.round(v[1] * 5) / 10, half: true };
+    }
+    v = n === 18 ? r["18"] : r[opt.part === "in" ? "9R" : "9A"];
+    return v ? { slope: v[0], sss: v[1], half: false } : null;
+  }
   function cardHoles(cid, opt) {
     var c = COURSES[cid];
     return c.loops ? opt.loops.length * 9 : c.holes.length;
   }
   function hcpCalc() {
-    var c = COURSES[setup.cid], card = cardRating(setup.cid, setup.opt, setup.tee);
-    var out = { card: card, idx: profile.index, value: null };
-    if (!card) return out;
+    var c = COURSES[setup.cid];
     var rc = resolveCourse(setup.cid, setup.opt), n = rc.holes.length;
     var par = rc.holes.reduce(function (s, h) { return s + h.p; }, 0);
-    var cn = cardHoles(setup.cid, setup.opt);
-    var sss = card.sss * n / cn;          // SSS ramené au nombre de trous joués
-    out.par = par; out.n = n; out.sss = Math.round(sss * 10) / 10;
+    var card = cardRating(setup.cid, setup.opt, setup.tee), rt = null;
+    if (card && card.mine) {
+      var cn = cardHoles(setup.cid, setup.opt);
+      rt = { slope: card.slope, sss: card.sss * n / cn, half: n < cn, mine: true };
+    } else {
+      rt = officialRating(setup.cid, setup.opt, setup.tee, n);
+      if (rt) rt.ffg = true;
+      else if (card) { var cn2 = cardHoles(setup.cid, setup.opt); rt = { slope: card.slope, sss: card.sss * n / cn2, half: n < cn2, est: card.est }; }
+    }
+    var out = { card: rt, idx: profile.index, value: null, par: par, n: n };
+    if (!rt) return out;
+    out.sss = Math.round(rt.sss * 10) / 10;
     if (profile.index == null || profile.index === "") return out;
-    var v = profile.index * (n === 9 ? 0.5 : 1) * card.slope / 113 + (sss - par);
+    var v = profile.index * (rt.half ? 0.5 : 1) * rt.slope / 113 + (rt.sss - par);
     out.raw = v;
     out.value = Math.max(0, Math.round(v));
     return out;
@@ -1142,12 +1174,13 @@
     var calc = hcpCalc(), c = COURSES[setup.cid];
     var fix = ' <button class="link-btn" id="hSlope">' + (calc.card ? "Modifier slope / SSS" : "Saisir slope / SSS") + "</button>";
     if (!calc.card) return "Slope et SSS de ce départ inconnus : ils sont imprimés sur la carte de score." + fix;
-    var vals = "slope " + calc.card.slope + ", SSS " + String(calc.sss).replace(".", ",") + ", par " + calc.par +
-      (calc.card.est ? " (à vérifier sur la carte de score)" : "");
-    if (calc.value == null) return "Renseigne ton index dans Réglages pour le calcul automatique. " + vals + "." + fix;
-    var f = "Index " + String(profile.index).replace(".", ",") + (calc.n === 9 ? " ÷ 2" : "") + " × " + calc.card.slope + "/113 + (" +
+    var src = calc.card.ffg ? " Valeurs officielles ffgolf" + (calc.n === 9 && !calc.card.half ? " (étalonnage 9 trous)" : "") + "." :
+      calc.card.mine ? " Valeurs saisies par toi." : calc.card.est ? " Slope et SSS à vérifier sur la carte de score." : "";
+    var vals = "slope " + calc.card.slope + ", SSS " + String(calc.sss).replace(".", ",") + ", par " + calc.par + ".";
+    if (calc.value == null) return "Renseigne ton index dans Réglages pour le calcul automatique. " + vals + src + fix;
+    var f = "Index " + String(profile.index).replace(".", ",") + (calc.card.half ? " ÷ 2" : "") + " × " + calc.card.slope + "/113 + (" +
       String(calc.sss).replace(".", ",") + " − " + calc.par + ") = " + String(Math.round(calc.raw * 10) / 10).replace(".", ",") + " → " + calc.value;
-    return f + (calc.card.est ? ". Slope et SSS à vérifier sur la carte de score." : ".") + (setup.hcpTouched ? " Tu l'as ajusté à la main." : "") + fix;
+    return f + "." + src + (setup.hcpTouched ? " Tu l'as ajusté à la main." : "") + fix;
   }
   function slopeSheet() {
     var c = COURSES[setup.cid], key = slopeKey(setup.cid, setup.opt, setup.tee), card = cardRating(setup.cid, setup.opt, setup.tee);
