@@ -3,7 +3,7 @@ window.BUILTIN_COURSES = {
     barbaroux: {
       name: "Golf de Barbaroux",
       short: "Barbaroux",
-      tees: [{ id: "j", label: "Jaunes", hcp: 16 }, { id: "b", label: "Blancs", hcp: 20 }],
+      tees: [{ id: "j", label: "Jaunes", hcp: 16, slope: 142, sss: 70.8, est: 1 }, { id: "b", label: "Blancs", hcp: 20, slope: 151, sss: 73.1, est: 1 }],
       hcpNote: "16 jaunes / 20 blancs (index 13.6)",
       holes: [
         {p:4,i:7,j:315,b:358,danger:"Long bunker en bordure droite du fairway, plan d'eau à droite.",plan:"Bois 3 centre-gauche, reste ~120 m.",club:"Bois 3 → fer 9"},
@@ -77,7 +77,7 @@ window.BUILTIN_COURSES = {
     vertparc: {
       name: "Golf du Vert Parc",
       short: "Vert Parc",
-      tees: [{ id: "j", label: "Jaunes", hcp: 15 }],
+      tees: [{ id: "j", label: "Jaunes", hcp: 15, slope: 132, sss: 70.2, est: 1 }],
       hcpNote: "≈ 15 avec l'index 13.6 (jaunes, slope 132, SSS 70.2)",
       center: [50.57015, 2.83700],
       holes: [

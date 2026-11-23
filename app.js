@@ -90,7 +90,7 @@
   var K = {
     round: "golf_round_v1", history: "golf_history_v1", notes: "golf_notes_v1", seeded: "golf_seeded_v1",
     ucourses: "golf_courses_v1", geo: "golf_geo_v1", profile: "golf_profile_v1", clubs: "golf_clubs_v2",
-    plans: "golf_plans_v1", weather: "golf_weather_v1"
+    plans: "golf_plans_v1", weather: "golf_weather_v1", slopes: "golf_slopes_v1"
   };
   var profile = load(K.profile, { name: "", theme: "auto" });
   var history = load(K.history, []);
@@ -99,12 +99,14 @@
   var geoOver = load(K.geo, {});
   var round = load(K.round, null);
   var plansState = load(K.plans, { custom: [], checks: {}, hidden: [] });
+  var slopes = load(K.slopes, {});
   function persist(what) {
     if (what === "profile") save(K.profile, profile);
     if (what === "history") save(K.history, history);
     if (what === "notes") save(K.notes, notes);
     if (what === "courses") { save(K.ucourses, userCourses); rebuildCourses(); }
     if (what === "geo") save(K.geo, geoOver);
+    if (what === "slopes") save(K.slopes, slopes);
     if (what === "round") save(K.round, round);
     if (what === "plans") save(K.plans, plansState);
     if (what === "clubs") save(K.clubs, clubs);
@@ -640,7 +642,7 @@
     });
     on("sExport", "click", function () {
       var data = { app: "carnet-golf", version: 4, exportedAt: new Date().toISOString(), profile: profile, history: history, notes: notes,
-        courses: userCourses, geo: geoOver, clubs: clubs, plans: plansState, round: round };
+        courses: userCourses, geo: geoOver, clubs: clubs, plans: plansState, round: round, slopes: slopes };
       shareFile("carnet-golf-" + new Date().toISOString().slice(0, 10) + ".json", data, "Sauvegarde du carnet de golf");
     });
     on("sImport", "click", function () { $("#sFile").click(); });
@@ -652,9 +654,10 @@
           history = d.history; notes = d.notes || {}; userCourses = d.courses || {}; geoOver = d.geo || {};
           if (d.clubs && d.clubs.list) clubs = d.clubs;
           if (d.plans) plansState = d.plans;
+          if (d.slopes) slopes = d.slopes;
           if (d.profile && d.profile.name) profile = d.profile;
           round = d.round && d.round.holes ? d.round : null;
-          ["history", "notes", "courses", "geo", "clubs", "plans", "profile", "round"].forEach(persist);
+          ["history", "notes", "courses", "geo", "clubs", "plans", "profile", "round", "slopes"].forEach(persist);
           save(K.seeded, true);
           applyTheme();
           toast("Sauvegarde restaurée");
@@ -1097,9 +1100,73 @@
       else setup.opt = { part: setup.n === 18 ? "twice" : "all" };
     }
     if (!setup.hcpTouched) {
-      var h = teeOf(c, setup.tee).hcp;
-      setup.hcp = setup.n === 9 ? Math.round(h / 2) : h;
+      var calc = hcpCalc();
+      if (calc.value != null) setup.hcp = calc.value;
+      else { var h = teeOf(c, setup.tee).hcp; setup.hcp = setup.n === 9 ? Math.round(h / 2) : h; }
     }
+  }
+  // ---------- Handicap de jeu (WHS, formule ffgolf, 100 % en individuel) ----------
+  // 18 trous : index × slope / 113 + (SSS − par)   ·   9 trous : index / 2 × slope / 113 + (SSS 9 trous − par 9 trous)
+  function slopeKey(cid, opt, tee) {
+    var c = COURSES[cid];
+    return cid + "|" + tee + (c.loops ? "|" + opt.loops.slice().sort().join("+") : "");
+  }
+  // valeurs « de la carte » pour ce départ : 18 trous (ou 9 si le golf ou la boucle n'en a que 9)
+  function cardRating(cid, opt, tee) {
+    var mine = slopes[slopeKey(cid, opt, tee)];
+    if (mine) return { slope: mine.slope, sss: mine.sss, mine: true };
+    var t = teeOf(COURSES[cid], tee);
+    if (!COURSES[cid].loops && t.slope && t.sss) return { slope: t.slope, sss: t.sss, est: !!t.est };
+    return null;
+  }
+  function cardHoles(cid, opt) {
+    var c = COURSES[cid];
+    return c.loops ? opt.loops.length * 9 : c.holes.length;
+  }
+  function hcpCalc() {
+    var c = COURSES[setup.cid], card = cardRating(setup.cid, setup.opt, setup.tee);
+    var out = { card: card, idx: profile.index, value: null };
+    if (!card) return out;
+    var rc = resolveCourse(setup.cid, setup.opt), n = rc.holes.length;
+    var par = rc.holes.reduce(function (s, h) { return s + h.p; }, 0);
+    var cn = cardHoles(setup.cid, setup.opt);
+    var sss = card.sss * n / cn;          // SSS ramené au nombre de trous joués
+    out.par = par; out.n = n; out.sss = Math.round(sss * 10) / 10;
+    if (profile.index == null || profile.index === "") return out;
+    var v = profile.index * (n === 9 ? 0.5 : 1) * card.slope / 113 + (sss - par);
+    out.raw = v;
+    out.value = Math.max(0, Math.round(v));
+    return out;
+  }
+  function hcpLine() {
+    var calc = hcpCalc(), c = COURSES[setup.cid];
+    var fix = ' <button class="link-btn" id="hSlope">' + (calc.card ? "Modifier slope / SSS" : "Saisir slope / SSS") + "</button>";
+    if (!calc.card) return "Slope et SSS de ce départ inconnus : ils sont imprimés sur la carte de score." + fix;
+    var vals = "slope " + calc.card.slope + ", SSS " + String(calc.sss).replace(".", ",") + ", par " + calc.par +
+      (calc.card.est ? " (à vérifier sur la carte de score)" : "");
+    if (calc.value == null) return "Renseigne ton index dans Réglages pour le calcul automatique. " + vals + "." + fix;
+    var f = "Index " + String(profile.index).replace(".", ",") + (calc.n === 9 ? " ÷ 2" : "") + " × " + calc.card.slope + "/113 + (" +
+      String(calc.sss).replace(".", ",") + " − " + calc.par + ") = " + String(Math.round(calc.raw * 10) / 10).replace(".", ",") + " → " + calc.value;
+    return f + (calc.card.est ? ". Slope et SSS à vérifier sur la carte de score." : ".") + (setup.hcpTouched ? " Tu l'as ajusté à la main." : "") + fix;
+  }
+  function slopeSheet() {
+    var c = COURSES[setup.cid], key = slopeKey(setup.cid, setup.opt, setup.tee), card = cardRating(setup.cid, setup.opt, setup.tee);
+    var cn = cardHoles(setup.cid, setup.opt), t = teeOf(c, setup.tee);
+    var what = (c.loops ? setup.opt.loops.map(function (l) { return c.loops[l].name; }).join(" + ") : c.short) + ", départs " + t.label.toLowerCase();
+    openSheet("<h3>Slope et SSS</h3><p>" + esc(what) + ". Recopie les valeurs de la carte de score pour " + cn + " trous (on les appelle aussi « Slope » et « SSS » ou « CR »).</p>" +
+      '<div class="row"><div class="field"><label>Slope</label><input class="input" id="slS" inputmode="numeric" placeholder="Ex. 132" value="' + (card ? card.slope : "") + '" /></div>' +
+      '<div class="field"><label>SSS</label><input class="input" id="slR" inputmode="decimal" placeholder="Ex. 70,2" value="' + (card ? String(card.sss).replace(".", ",") : "") + '" /></div></div>' +
+      '<button class="btn" id="slOk">Enregistrer</button>' + (slopes[key] ? '<button class="btn ghost" id="slDel">Revenir aux valeurs d\'origine</button>' : ""), function () {
+      on("slOk", "click", function () {
+        var sl = parseInt($("#slS").value, 10), ss = parseFloat($("#slR").value.replace(",", "."));
+        if (isNaN(sl) || sl < 55 || sl > 155) { toast("Le slope est entre 55 et 155"); return; }
+        var lo = cn === 9 ? 25 : 55, hi = cn === 9 ? 45 : 85;
+        if (isNaN(ss) || ss < lo || ss > hi) { toast("SSS pour " + cn + " trous : entre " + lo + " et " + hi); return; }
+        slopes[key] = { slope: sl, sss: Math.round(ss * 10) / 10 }; persist("slopes");
+        setup.hcpTouched = false; closeSheet(); show(current);
+      });
+      on("slDel", "click", function () { delete slopes[key]; persist("slopes"); setup.hcpTouched = false; closeSheet(); show(current); });
+    });
   }
   VIEWS.newround = function () {
     if (!setup) setup = defaultSetup();
@@ -1138,7 +1205,7 @@
       '<div class="field" style="margin-bottom:0"><label>Nombre de trous</label>' + seg("nHoles", [{ v: 9, l: "9 trous" }, { v: 18, l: "18 trous" }], setup.n) + "</div></div>" +
       '<h2 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:20px 4px 12px">Parcours</h2>' + courses +
       '<button class="btn line" data-go="carnet" style="margin-bottom:14px">' + ic("plus") + "Ajouter un parcours</button>" +
-      '<div class="card">' + opts + '<div class="line-row" style="padding-top:0"><div><div class="t">Handicap de jeu</div><div class="s">' + esc(c.hcpNote || "Calculé avec ton index et la carte du golf") +
+      '<div class="card">' + opts + '<div class="line-row" style="padding-top:0"><div><div class="t">Handicap de jeu</div><div class="s">' + hcpLine() +
       '</div></div><div class="stepper"><button id="hM">−</button><span class="v num" id="hV">' + setup.hcp + '</span><button id="hP">+</button></div></div></div>' +
       '<button class="btn gold" id="nStart">' + ic("flag") + "Démarrer la partie</button>");
     function bindSeg(id, key, num) {
@@ -1159,12 +1226,13 @@
       b.addEventListener("click", function () {
         var v = b.getAttribute("data-v");
         if (setup.opt.loops[1] === v) setup.opt.loops[1] = setup.opt.loops[0];
-        setup.opt.loops[0] = v; show(current);
+        setup.opt.loops[0] = v; setup.hcpTouched = false; show(current);
       });
     });
-    $$("#nLoop1 .chip").forEach(function (b) { b.addEventListener("click", function () { setup.opt.loops[1] = b.getAttribute("data-v"); show(current); }); });
-    $$("#nPart button").forEach(function (b) { b.addEventListener("click", function () { setup.opt.part = b.getAttribute("data-v"); show(current); }); });
+    $$("#nLoop1 .chip").forEach(function (b) { b.addEventListener("click", function () { setup.opt.loops[1] = b.getAttribute("data-v"); setup.hcpTouched = false; show(current); }); });
+    $$("#nPart button").forEach(function (b) { b.addEventListener("click", function () { setup.opt.part = b.getAttribute("data-v"); setup.hcpTouched = false; show(current); }); });
     $$("#nTee .chip").forEach(function (b) { b.addEventListener("click", function () { setup.tee = b.getAttribute("data-v"); setup.hcpTouched = false; show(current); }); });
+    on("hSlope", "click", slopeSheet);
     on("hM", "click", function () { setup.hcp = Math.max(0, setup.hcp - 1); setup.hcpTouched = true; $("#hV").textContent = setup.hcp; });
     on("hP", "click", function () { setup.hcp = Math.min(54, setup.hcp + 1); setup.hcpTouched = true; $("#hV").textContent = setup.hcp; });
     on("nStart", "click", function () {
